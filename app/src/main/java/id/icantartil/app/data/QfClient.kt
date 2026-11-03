@@ -20,9 +20,15 @@ object QfClient {
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
 
+    /** Toleran: tambahkan https:// jika terlewat, dan buang garis miring di akhir. */
+    private fun baseUrl(): String {
+        val u = BuildConfig.PROXY_BASE_URL.trim().trimEnd('/')
+        return if (u.startsWith("http://") || u.startsWith("https://")) u else "https://$u"
+    }
+
     suspend fun getJson(path: String): JSONObject = withContext(Dispatchers.IO) {
         val req = Request.Builder()
-            .url(BuildConfig.PROXY_BASE_URL.trimEnd('/') + path)
+            .url(baseUrl() + path)
             .header("x-app-key", BuildConfig.APP_KEY)
             .build()
         http.newCall(req).execute().use { r ->

@@ -17,7 +17,7 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
-        buildConfigField("String", "PROXY_BASE_URL", "\"${cfg("proxyBaseUrl", "PROXY_BASE_URL", "icantartil-proxy.ican-aulya.workers.dev")}\"")
+        buildConfigField("String", "PROXY_BASE_URL", "\"${cfg("proxyBaseUrl", "PROXY_BASE_URL", "https://GANTI-URL-WORKER.workers.dev")}\"")
         buildConfigField("String", "APP_KEY", "\"${cfg("appKey", "APP_KEY", "")}\"")
         buildConfigField("int", "RECITATION_ID", "7")
         buildConfigField("String", "ADMOB_BANNER_ID", "\"${cfg("admobBannerId", "ADMOB_BANNER_ID", "ca-app-pub-3940256099942544/6300978111")}\"")
