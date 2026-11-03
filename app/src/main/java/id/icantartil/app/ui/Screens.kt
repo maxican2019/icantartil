@@ -141,8 +141,8 @@ fun RangeScreen(vm: AppVm) {
                 bg = Color.White, onClick = { vm.screen = Screen.Home },
             ) { Text(c?.arabic.orEmpty(), color = DeepGreen, fontSize = 24.sp) }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Stepper("Dari ayat", vm.from.toString(), Modifier.weight(1f), { vm.setFrom(vm.from - 1) }, { vm.setFrom(vm.from + 1) })
-                Stepper("Sampai ayat", vm.to.toString(), Modifier.weight(1f), { vm.setTo(vm.to - 1) }, { vm.setTo(vm.to + 1) })
+                Stepper("Dari ayat", vm.from.toString(), Modifier.weight(1f), { vm.updateFrom(vm.from - 1) }, { vm.updateFrom(vm.from + 1) })
+                Stepper("Sampai ayat", vm.to.toString(), Modifier.weight(1f), { vm.updateTo(vm.to - 1) }, { vm.updateTo(vm.to + 1) })
             }
             Spacer(Modifier.height(10.dp))
             LoopChips(vm)

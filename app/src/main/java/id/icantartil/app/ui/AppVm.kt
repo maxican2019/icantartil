@@ -77,8 +77,8 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         if (ayahs.isEmpty()) openChapter(chapter(chapterId) ?: chapters.first()) else screen = Screen.Range
     }
 
-    fun setFrom(v: Int) { val c = chapter(chapterId) ?: return; from = v.coerceIn(1, c.count); if (to < from) to = from }
-    fun setTo(v: Int) { val c = chapter(chapterId) ?: return; to = v.coerceIn(from, c.count) }
+    fun updateFrom(v: Int) { val c = chapter(chapterId) ?: return; from = v.coerceIn(1, c.count); if (to < from) to = from }
+    fun updateTo(v: Int) { val c = chapter(chapterId) ?: return; to = v.coerceIn(from, c.count) }
 
     private val perAyahOpts = listOf(1, 2, 3, 5, 10)
     private val perRangeOpts = listOf(0, 2, 3, 5, 10)
