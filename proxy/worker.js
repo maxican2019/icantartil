@@ -4,7 +4,7 @@ const ALLOWED = /^\/content\/api\/v4\/(chapters|verses\/by_chapter\/\d+|resource
 let cached = { token: null, exp: 0 };
 
 const hosts = (env) =>
-  env.QF_ENV === "prelive"
+  env.QF_ENV === "production"
     ? { auth: "https://prelive-oauth2.quran.foundation", api: "https://apis-prelive.quran.foundation" }
     : { auth: "https://oauth2.quran.foundation", api: "https://apis.quran.foundation" };
 
