@@ -3,5 +3,5 @@ main = "worker.js"
 compatibility_date = "2024-09-01"
 
 [vars]
-QF_ENV = "production"   # atau "prelive" saat uji
+QF_ENV = "prelive"   # atau "prelive" saat uji
 # Rahasia diset lewat: wrangler secret put QF_CLIENT_ID / QF_CLIENT_SECRET / APP_KEY
