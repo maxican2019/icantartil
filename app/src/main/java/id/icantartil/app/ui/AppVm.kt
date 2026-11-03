@@ -5,6 +5,7 @@ import android.app.Application
 import androidx.compose.runtime.*
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import id.icantartil.app.BuildConfig
 import id.icantartil.app.ads.AdFree
 import id.icantartil.app.ads.Ads
 import id.icantartil.app.audio.AudioEngine
@@ -13,6 +14,7 @@ import id.icantartil.app.sync.ContentSync
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.IOException
 
 enum class Screen { Home, Range, Player, History, Storage }
 
@@ -54,8 +56,25 @@ class AppVm(app: Application) : AndroidViewModel(app) {
             chapters = repo.chapters()
         } catch (e: CancellationException) { throw e
         } catch (e: ContentExpired) { error = "Data perlu diperbarui. Sambungkan internet lalu coba lagi."
-        } catch (e: Exception) { error = "Gagal memuat daftar surat. Periksa koneksi lalu coba lagi." }
+        } catch (e: Exception) { error = describe(e) }
         loading = false
+    }
+
+    /** Pesan galat yang menyebut penyebab sebenarnya, supaya mudah didiagnosis. */
+    private fun describe(e: Exception): String {
+        val url = BuildConfig.PROXY_BASE_URL
+        val host = url.removePrefix("https://").removePrefix("http://").substringBefore('/')
+        return when {
+            url.contains("GANTI-URL") -> "PROXY_BASE_URL belum diisi saat build (masih: $host). Isi secret di GitHub lalu build ulang."
+            e is HttpException -> when (e.code) {
+                403 -> "Ditolak proxy (403): APP_KEY di aplikasi tidak sama dengan APP_KEY di proxy."
+                502 -> "Proxy gagal mengambil token Quran Foundation (502). Periksa QF_CLIENT_ID, QF_CLIENT_SECRET, dan QF_ENV (prelive/production)."
+                404 -> "Alamat tidak ditemukan (404) di $host."
+                else -> "Server $host menjawab HTTP ${e.code}."
+            }
+            e is IOException -> "Tidak bisa terhubung ke $host (${e.javaClass.simpleName}). Periksa koneksi dan alamat proxy."
+            else -> "Data dari server tidak terbaca (${e.javaClass.simpleName}: ${e.message?.take(80)})."
+        }
     }
 
     fun retry() { viewModelScope.launch { boot() } }
