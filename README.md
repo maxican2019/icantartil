@@ -1,61 +1,42 @@
 # IcanTartil — Murojaah Bersama, Aku Bisa!
 
-Aplikasi Android (Kotlin, Jetpack Compose, Media3) untuk murojaah: pilih rentang ayat, putar dengan loop per ayat dan per rentang, riwayat, serta cache audio 200 MB.
-Sumber konten **hanya Quran Foundation (Quran.com)**, karena syarat developernya mengizinkan iklan.
+Aplikasi Android (Kotlin, Jetpack Compose, Media3, SQLite) untuk murojaah: pilih rentang ayat, putar dengan loop per ayat dan per rentang, riwayat, tafsir, dan cache audio 200 MB.
+Sumber data: **EQuran.id API v2** (`https://equran.id/api/v2`), tanpa API key dan tanpa proxy.
 
-## Isi repo
-| Folder | Fungsi |
+## Alur data
+| Data | Cara kerja |
 |---|---|
-| `app/` | Aplikasi Android |
-| `proxy/` | Proxy Cloudflare Worker. Menyimpan `client_secret` Quran Foundation di server, bukan di APK |
-| `.github/workflows/android.yml` | Build APK otomatis di GitHub Actions |
+| Teks 114 surat (Arab, latin, terjemahan Indonesia) | Disimpan di **SQLite lokal** dan dibaca dari lokal (cepat, offline). Sekali saja diisi: dari **bundel bawaan APK** jika ada, jika tidak diunduh dari server (114 permintaan, dengan progres). Tombol *Perbarui data* di layar Unduhan mengunduh ulang. |
+| Audio | Streaming dari URL yang diberikan API, dengan cache LRU 200 MB. Rentang diunduh dulu sebelum diputar; tombol *Unduh seluruh surat* untuk satu surat penuh. |
+| Tafsir | Diambil **saat dibutuhkan** (tombol *Tafsir ayat N* di Pemutar), lalu disimpan di database. |
+| Cadangan jika API mati | **Bundel JSON bawaan APK** (`assets/quran_bundle.json`), dibuat otomatis oleh langkah *Unduh bundel* di GitHub Actions (`tools/fetch_bundle.py`). Berkas ini tidak di-commit ke repo. Tafsir tidak ikut bundel. |
 
-## Langkah cepat
-1. **Akses API.** Minta akses Content API di api-docs.quran.foundation untuk mendapatkan `client_id` dan `client_secret` (mulai dari lingkungan `prelive`).
-2. **Deploy proxy.**
-   ```bash
-   cd proxy
-   npm i -g wrangler && wrangler login
-   wrangler secret put QF_CLIENT_ID
-   wrangler secret put QF_CLIENT_SECRET
-   wrangler secret put APP_KEY        # kata sandi bebas, dipakai aplikasi sebagai pagar sederhana
-   wrangler deploy                    # catat URL-nya
-   ```
-   Ubah `QF_ENV` di `wrangler.toml` ke `prelive` jika memakai kredensial prelive.
-3. **Push ke GitHub**, lalu isi *Settings → Secrets and variables → Actions*:
-   | Secret | Isi |
-   |---|---|
-   | `PROXY_BASE_URL` | URL Worker, tanpa garis miring di akhir |
-   | `APP_KEY` | Sama dengan `APP_KEY` di proxy |
-   | `ADMOB_APP_ID`, `ADMOB_BANNER_ID`, `ADMOB_REWARDED_ID` | Opsional. Jika kosong, dipakai **ID uji Google** |
-4. Buka tab **Actions → Build APK**. APK ada di *Artifacts* (`IcanTartil-debug-apk`).
-5. Pasang di HP (izinkan sumber tidak dikenal).
-
-Build lokal: buka folder ini di Android Studio, atau `gradle wrapper --gradle-version 8.9` lalu `./gradlew assembleDebug -PproxyBaseUrl=https://...`.
+## Cara build
+1. Push folder ini ke GitHub. Tidak ada secret wajib.
+2. Tab **Actions → Build APK**. APK ada di *Artifacts*. Langkah pertama mengunduh bundel dari equran.id; jika gagal, build tetap lanjut dan aplikasi akan mengunduh data saat pertama dibuka.
+3. Opsional: secret `ADMOB_APP_ID`, `ADMOB_BANNER_ID`, `ADMOB_REWARDED_ID`. Jika kosong, dipakai ID uji Google.
+4. Cloudflare Worker dan secret `PROXY_BASE_URL`/`APP_KEY` dari versi sebelumnya **tidak dipakai lagi** dan boleh dihapus.
 
 ## Iklan
-- Banner tampil hanya di Beranda, Riwayat, dan Unduhan. Tidak pernah di Pemutar atau saat ayat dibaca.
-- **Tonton 1 iklan → bebas iklan 12 jam. Tonton 2 iklan → bebas iklan 24 jam.**
-- Masa bebas iklan **berakhir paling lambat pukul 00.00** (jam lokal perangkat), lalu iklan aktif lagi. Aturan ini berlaku untuk 12 jam maupun 24 jam. Logikanya ada di `ads/AdFree.kt` dan sudah dites (`AdFreeTest`).
-- Tombol **Dukung developer (sukarela)** menampilkan satu iklan tanpa imbalan.
-- Jika pengguna berhenti setelah iklan pertama pada paket 2 iklan, ia mendapat 12 jam. Masa yang lebih panjang tidak pernah dipersingkat.
-- Sebelum rilis: buat akun AdMob, ganti ID uji, dan blokir kategori sensitif di konsol AdMob. Consent UMP (untuk wilayah EEA) belum dipasang.
+- Banner hanya di Beranda, Riwayat, dan Unduhan. Tidak pernah di Pemutar.
+- **1 iklan → bebas iklan 12 jam. 2 iklan → bebas iklan 24 jam.** Berakhir paling lambat pukul 00.00 (jam lokal), lalu iklan aktif lagi. Logika di `ads/AdFree.kt` dan dites (`AdFreeTest`).
+- *Dukung developer (sukarela)* menampilkan satu iklan tanpa imbalan.
 
-## Kepatuhan Quran Foundation (alat sinkronisasi)
-- **Data surat dan ayat** memakai API biasa dengan cache maksimal 6 hari. File yang lebih tua dari 7 hari dihapus (`data/QfRepository.kt`, objek `Policy`).
-- **Audio** dijaga lewat Content Sync (`resources/sync`, grup `recitations:7`) sebagai change-feed (`sync/ContentSync.kt`):
-  - berjalan harian lewat WorkManager, dan saat aplikasi dibuka jika sinkron terakhir lebih dari 3 hari;
-  - jika ada perubahan atau token tidak valid, cache audio dibersihkan agar diunduh ulang;
-  - jika lewat 7 hari dan server menolak (bukan sekadar offline), semua cache dibersihkan;
-  - jika offline, salinan lama tetap boleh dipakai.
-- **Perlu dikonfirmasi ke Quran Foundation** (tanyakan tertulis): (a) apakah mp3 yang disimpan pemutar termasuk "QF Content" yang dibatasi 1 minggu; (b) apakah boleh tidak mengunduh snapshot bootstrap karena aplikasi tidak menyimpan salinan baris data. Fitur "simpan permanen" sengaja ditunda sampai (a) jelas.
-- Baca ulang Developer Terms untuk kewajiban atribusi dan larangan lain sebelum rilis.
+## Izin dan lisensi (baca sebelum rilis)
+Syarat layanan EQuran.id (equran.id/terms) **tidak menyebut iklan atau penggunaan komersial secara eksplisit**. Yang tertulis:
+- API gratis untuk penggunaan wajar dan boleh dipakai untuk pengembangan aplikasi; ada rate limiting.
+- **Data yang diperoleh tidak boleh dijual atau diperjualbelikan.**
+- Konten boleh dibagikan dengan mencantumkan sumber (atribusi sudah ada di layar Unduhan).
+- Terjemahan, tafsir, audio, dan fitur buatan EQuran.id dilindungi hak cipta.
+
+Karena itu, **tanyakan tertulis ke EQuran.id** sebelum rilis publik: (1) apakah aplikasi beriklan boleh memakai API-nya, (2) apakah teks boleh dibundel di dalam APK, (3) apakah mengunduh seluruh 114 surat sekali saja dapat diterima.
+Jika jawabannya tidak, hapus langkah *Unduh bundel* di workflow, dan pertimbangkan sumber lain yang izinnya tegas.
 
 ## Yang belum diverifikasi
-- **Kode belum pernah dikompilasi di lingkungan pembuatnya** (tidak ada akses Android SDK/Google Maven). Yang sudah dites hanya logika `AdFree` (7 pengujian lulus). Build pertama di GitHub Actions adalah uji pertamanya; siapkan kemungkinan perbaikan kecil.
-- Bentuk respons API ditulis dari dokumentasi dan belum diuji langsung: `verses/by_chapter` (`audio.url`, `text_uthmani`), `resources/sync` (`sync.mutations`, `has_more`, `next_page_url`, `next_sync_token`).
-- Asumsi: ID qari `7` = Alafasy (cek `/resources/recitations`); URL audio relatif dilengkapi dengan `https://verses.quran.foundation/`.
-- Masa bebas iklan memakai jam perangkat, sehingga bisa dimanipulasi dengan mengubah jam.
+- **Kode belum dikompilasi di lingkungan pembuatnya.** Build pertama di GitHub Actions adalah ujinya.
+- Bentuk respons: `surat/{id}` (`nomorAyat`, `teksArab`, `teksLatin`, `teksIndonesia`, `audio{"05":url}`) sesuai dokumentasi. Bidang `nama`, `arti`, `tempatTurun` pada daftar surat, dan `tafsir[].ayat/teks` pada endpoint tafsir, **belum terkonfirmasi** (situs memblokir akses otomatis). Jika kosong atau berbeda, sesuaikan di `data/QuranDb.kt` dan `QuranRepository.parseTafsir`.
+- ID qari `05` = Misyari Rasyid Al-Afasy berdasarkan urutan di dokumentasi. Pilihan qari belum ada di antarmuka.
+- URL audio berawalan `http://` diubah otomatis ke `https://`.
 
-## Belum ada (rencana berikutnya)
-Layanan pemutaran di latar belakang dengan notifikasi, pencarian isi ayat, terjemahan dan audio terjemahan (TTS), font Arab Amiri, simpan permanen (menunggu konfirmasi di atas).
+## Belum ada
+Pemutaran di latar belakang dengan notifikasi, pilihan qari, audio terjemahan (TTS), font Arab Amiri.
