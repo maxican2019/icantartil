@@ -155,7 +155,7 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun setReciter(id: String) {
+    fun chooseReciter(id: String) {
         Prefs.reciter = id; reciter = id; showReciters = false
         val c = chapter(chapterId)
         if (c != null && screen == Screen.Range) {

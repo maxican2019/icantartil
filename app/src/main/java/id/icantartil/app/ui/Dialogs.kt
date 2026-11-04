@@ -162,8 +162,8 @@ fun ReciterRow(vm: AppVm) {
 @Composable
 private fun ReciterItem(r: Reciter, vm: AppVm) {
     val sel = r.id == vm.reciter
-    Row(Modifier.fillMaxWidth().clickable { vm.setReciter(r.id) }, verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(sel, { vm.setReciter(r.id) }, colors = RadioButtonDefaults.colors(selectedColor = Gold, unselectedColor = Mist))
+    Row(Modifier.fillMaxWidth().clickable { vm.chooseReciter(r.id) }, verticalAlignment = Alignment.CenterVertically) {
+        RadioButton(sel, { vm.chooseReciter(r.id) }, colors = RadioButtonDefaults.colors(selectedColor = Gold, unselectedColor = Mist))
         Text(r.name, color = if (sel) LightGold else Color.White, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
     }
 }
