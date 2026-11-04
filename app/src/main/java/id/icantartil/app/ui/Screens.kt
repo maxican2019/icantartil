@@ -30,6 +30,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import id.icantartil.app.R
 import id.icantartil.app.audio.AudioEngine
 import id.icantartil.app.audio.PlayState
+import id.icantartil.app.data.Chapter
 import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.LocalDate
@@ -66,63 +67,80 @@ fun AppRoot(vm: AppVm = viewModel()) {
     }
 }
 
+/** Samakan variasi ejaan (Furqon/Furqan, Baqoroh/Baqarah, Imron/Imran) agar pencarian tetap cocok. */
+private fun fold(s: String): String = s.lowercase()
+    .replace(Regex("[^a-z]"), "")
+    .replace("kh", "h").replace("sy", "s").replace("sh", "s").replace("dh", "d").replace("th", "t").replace("gh", "g")
+    .replace("oo", "u").replace("ee", "i").replace("ou", "u").replace("aa", "a").replace("ii", "i").replace("uu", "u")
+    .replace("q", "k").replace("o", "a")
+
+private fun chapterMatches(c: Chapter, q: String): Boolean {
+    val t = q.trim()
+    if (t.isEmpty() || t == c.id.toString() || c.arabic.contains(t)) return true
+    val f = fold(t)
+    return f.isNotEmpty() && fold(c.name).contains(f)
+}
+
 @Composable
 fun HomeScreen(vm: AppVm) {
     var q by remember { mutableStateOf("") }
     val h = vm.history.firstOrNull()
     val err = vm.error
-    Column(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxWidth().background(Green).padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 18.dp)) {
-            Image(
-                painterResource(R.drawable.logo_dark), "IcanTartil — Murojaah Bersama, Aku Bisa!",
-                Modifier.width(290.dp).aspectRatio(524f / 192f).align(Alignment.CenterHorizontally),
-            )
-            Text(
-                "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ", color = LightGold, fontSize = 22.sp, textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
-            )
-            TextField(
-                q, { q = it }, Modifier.fillMaxWidth(), singleLine = true, shape = Shape6,
-                placeholder = { Text("Cari surat atau nomor") },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.White, unfocusedContainerColor = Color.White,
-                    focusedTextColor = DeepGreen, unfocusedTextColor = DeepGreen, cursorColor = DeepGreen,
-                    focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
-                ),
-            )
-            Row(
-                Modifier.fillMaxWidth().padding(top = 14.dp).clip(Shape8).background(Gold).padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text("Lanjutkan murojaah", color = DeepGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        if (h != null) "${vm.name(h.chapter)} · ayat ${h.from}–${h.to}" else "Belum ada riwayat",
-                        color = DeepGreen, fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                    )
-                    Text(if (h != null) loopText(h.loop) else "Pilih surat di bawah untuk mulai", color = DeepGreen, fontSize = 12.sp)
+    val list = vm.chapters.filter { chapterMatches(it, q) }
+    // Seluruh Beranda satu daftar yang bisa digulung, supaya header tidak menghabiskan layar.
+    LazyColumn(Modifier.fillMaxSize().background(Color.White)) {
+        item {
+            Column(Modifier.fillMaxWidth().background(Green).padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 18.dp)) {
+                Image(
+                    painterResource(R.drawable.logo_dark), "IcanTartil — Murojaah Bersama, Aku Bisa!",
+                    Modifier.width(290.dp).aspectRatio(524f / 192f).align(Alignment.CenterHorizontally),
+                )
+                Text(
+                    "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ", color = LightGold, fontSize = 22.sp, textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
+                )
+                TextField(
+                    q, { q = it }, Modifier.fillMaxWidth(), singleLine = true, shape = Shape6,
+                    placeholder = { Text("Cari surat atau nomor") },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.White, unfocusedContainerColor = Color.White,
+                        focusedTextColor = DeepGreen, unfocusedTextColor = DeepGreen, cursorColor = DeepGreen,
+                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                    ),
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 14.dp).clip(Shape8).background(Gold).padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Lanjutkan murojaah", color = DeepGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            if (h != null) "${vm.name(h.chapter)} · ayat ${h.from}–${h.to}" else "Belum ada riwayat",
+                            color = DeepGreen, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                        )
+                        Text(if (h != null) loopText(h.loop) else "Pilih surat di bawah untuk mulai", color = DeepGreen, fontSize = 12.sp)
+                    }
+                    if (h != null) PlaySquare(false) { vm.replay(h) }
                 }
-                if (h != null) PlaySquare(false) { vm.replay(h) }
             }
+            Box(Modifier.fillMaxWidth().height(3.dp).background(Gold))
         }
-        Box(Modifier.fillMaxWidth().height(3.dp).background(Gold))
-        Column(Modifier.weight(1f).fillMaxWidth().background(Color.White).padding(start = 20.dp, top = 16.dp, end = 20.dp)) {
-            Text("Daftar Surat", color = Green, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.padding(bottom = 10.dp))
-            when {
-                vm.loading -> Text("Memuat…", color = Ink)
-                err != null -> Column {
+        item {
+            Text(if (vm.chapters.isEmpty()) "Daftar Surat" else "Daftar Surat · ${list.size} surat", color = Green, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 10.dp))
+        }
+        when {
+            vm.loading -> item { Text("Memuat…", color = Ink, modifier = Modifier.padding(horizontal = 20.dp)) }
+            err != null -> item {
+                Column(Modifier.padding(horizontal = 20.dp)) {
                     Text(err, color = Ink)
                     Spacer(Modifier.height(10.dp))
                     GoldButton("Coba lagi") { vm.retry() }
                 }
-                else -> {
-                    val list = vm.chapters.filter { q.isBlank() || it.name.contains(q.trim(), true) || it.id.toString() == q.trim() }
-                    LazyColumn {
-                        items(list, key = { it.id }) { c ->
-                            ListRow(c.id.toString(), c.name, "${c.count} ayat", onClick = { vm.openChapter(c) }) {
-                                Text(c.arabic, color = DeepGreen, fontSize = 24.sp)
-                            }
-                        }
+            }
+            else -> items(list, key = { it.id }) { c ->
+                Box(Modifier.padding(horizontal = 20.dp)) {
+                    ListRow(c.id.toString(), c.name, "${c.count} ayat", onClick = { vm.openChapter(c) }) {
+                        Text(c.arabic, color = DeepGreen, fontSize = 24.sp)
                     }
                 }
             }
