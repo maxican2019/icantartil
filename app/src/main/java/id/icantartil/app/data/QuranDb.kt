@@ -8,17 +8,19 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Database lokal (SQLite): teks 114 surat, audio per ayat, dan cache tafsir. */
-class QuranDb(ctx: Context) : SQLiteOpenHelper(ctx, "quran.db", null, 1) {
+class QuranDb(ctx: Context) : SQLiteOpenHelper(ctx, "quran.db", null, 2) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE surat(nomor INTEGER PRIMARY KEY, nama TEXT, latin TEXT, arti TEXT, jumlah INTEGER)")
         db.execSQL("CREATE TABLE ayat(surat INTEGER, nomor INTEGER, arab TEXT, latin TEXT, indo TEXT, audio TEXT, PRIMARY KEY(surat, nomor))")
         db.execSQL("CREATE TABLE tafsir(surat INTEGER PRIMARY KEY, json TEXT, at INTEGER)")
         db.execSQL("CREATE TABLE meta(k TEXT PRIMARY KEY, v TEXT)")
+        db.execSQL("CREATE TABLE audio_url(reciter TEXT, surat INTEGER, nomor INTEGER, url TEXT, PRIMARY KEY(reciter, surat, nomor))")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        for (t in listOf("surat", "ayat", "tafsir", "meta")) db.execSQL("DROP TABLE IF EXISTS $t")
-        onCreate(db)
+        if (oldVersion < 2) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS audio_url(reciter TEXT, surat INTEGER, nomor INTEGER, url TEXT, PRIMARY KEY(reciter, surat, nomor))")
+        }
     }
 
     private fun scalar(sql: String): Int = readableDatabase.rawQuery(sql, null).use { if (it.moveToFirst()) it.getInt(0) else 0 }
@@ -100,6 +102,35 @@ class QuranDb(ctx: Context) : SQLiteOpenHelper(ctx, "quran.db", null, 1) {
     fun putTafsir(surat: Int, json: String) {
         val v = ContentValues().apply { put("surat", surat); put("json", json); put("at", System.currentTimeMillis()) }
         writableDatabase.insertWithOnConflict("tafsir", null, v, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    /** Jumlah ayat dari semua surat sebelum [surat]; nomor ayat global = globalStart + nomor ayat. */
+    fun globalStart(surat: Int): Int =
+        readableDatabase.rawQuery("SELECT COALESCE(SUM(jumlah),0) FROM surat WHERE nomor < ?", arrayOf(surat.toString())).use { if (it.moveToFirst()) it.getInt(0) else 0 }
+
+    fun ayahCount(surat: Int): Int =
+        readableDatabase.rawQuery("SELECT jumlah FROM surat WHERE nomor=?", arrayOf(surat.toString())).use { if (it.moveToFirst()) it.getInt(0) else 0 }
+
+    fun cloudUrls(reciter: String, surat: Int): Map<Int, String> {
+        val out = HashMap<Int, String>()
+        readableDatabase.rawQuery("SELECT nomor,url FROM audio_url WHERE reciter=? AND surat=?", arrayOf(reciter, surat.toString())).use { c ->
+            while (c.moveToNext()) out[c.getInt(0)] = c.getString(1)
+        }
+        return out
+    }
+
+    fun putCloudUrls(reciter: String, surat: Int, urls: Map<Int, String>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val st = db.compileStatement("INSERT OR REPLACE INTO audio_url(reciter,surat,nomor,url) VALUES(?,?,?,?)")
+            for ((n, u) in urls) {
+                st.clearBindings()
+                st.bindString(1, reciter); st.bindLong(2, surat.toLong()); st.bindLong(3, n.toLong()); st.bindString(4, u)
+                st.executeInsert()
+            }
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
     }
 
     fun getMeta(k: String): String? =

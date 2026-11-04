@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import id.icantartil.app.ads.AdFree
 import id.icantartil.app.ads.Ads
 import id.icantartil.app.audio.AudioEngine
+import id.icantartil.app.audio.Narrator
 import id.icantartil.app.data.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -38,6 +39,8 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     var cacheTick by mutableIntStateOf(0); private set
     var toast by mutableStateOf<String?>(null)
     var tafsirView by mutableStateOf<Pair<String, String>?>(null); private set
+    var reciter by mutableStateOf(Prefs.reciter); private set
+    var showReciters by mutableStateOf(false)
 
     val isAdFree: Boolean get() = AdFree.isFree(adFreeUntil, now)
     fun chapter(id: Int) = chapters.firstOrNull { it.id == id }
@@ -105,6 +108,7 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         } catch (e: CancellationException) { throw e
         } catch (e: Exception) { /* lanjut: putar dari cache atau streaming */ }
         busy = null; cacheTick++
+        Narrator.stop()
         AudioEngine.play(chapterId, playable, loop)
         Prefs.addHistory(HistoryItem(chapterId, playable.first().number, playable.last().number, loop, System.currentTimeMillis()))
         history = Prefs.history()
@@ -149,6 +153,18 @@ class AppVm(app: Application) : AndroidViewModel(app) {
             }
             busy = null; cacheTick++
         }
+    }
+
+    fun setReciter(id: String) {
+        Prefs.reciter = id; reciter = id; showReciters = false
+        val c = chapter(chapterId)
+        if (c != null && screen == Screen.Range) {
+            viewModelScope.launch {
+                busy = "Memuat qari…"
+                guarded("Gagal memuat audio qari. Periksa koneksi.") { ayahs = repo.ayahs(c.id, 1, c.count) }
+                busy = null
+            }
+        } else ayahs = emptyList()
     }
 
     fun clearHistory() { Prefs.clearHistory(); history = emptyList() }

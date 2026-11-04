@@ -7,8 +7,8 @@ Sumber data: **EQuran.id API v2** (`https://equran.id/api/v2`), tanpa API key da
 | Data | Cara kerja |
 |---|---|
 | Teks 114 surat (Arab, latin, terjemahan Indonesia) | Disimpan di **SQLite lokal** dan dibaca dari lokal (cepat, offline). Sekali saja diisi: dari **bundel bawaan APK** jika ada, jika tidak diunduh dari server (114 permintaan, dengan progres). Tombol *Perbarui data* di layar Unduhan mengunduh ulang. |
-| Audio | Streaming dari URL yang diberikan API, dengan cache LRU 200 MB. Rentang diunduh dulu sebelum diputar; tombol *Unduh seluruh surat* untuk satu surat penuh. |
-| Tafsir | Diambil **saat dibutuhkan** (tombol *Tafsir ayat N* di Pemutar), lalu disimpan di database. |
+| Audio | Qari dari **EQuran.id** (6) dan **Al Quran Cloud / Islamic Network** (19 qari per ayat). URL audio Al Quran Cloud diambil dari `api.alquran.cloud/v1/surah/{n}/{edisi}` lalu disimpan; jika API gagal dipakai pola CDN `cdn.islamic.network/quran/audio/128/{edisi}/{nomor ayat global}.mp3`. Streaming dengan cache LRU 200 MB. Rentang diunduh dulu sebelum diputar; tombol *Unduh seluruh surat* untuk satu surat penuh. |
+| Tafsir | Diambil **saat dibutuhkan** (tombol *Tafsir ayat N* di Pemutar), lalu disimpan di database. Bisa **dibacakan** dengan suara sintetis bawaan Android (Teks-ke-ucapan, bahasa Indonesia): Putar, Jeda/Lanjut, Berhenti, kecepatan 0,8×/1×/1,25×, dengan kalimat yang sedang dibaca disorot. Butuh data suara Indonesia terpasang di HP. |
 | Cadangan jika API mati | **Bundel JSON bawaan APK** (`assets/quran_bundle.json`), dibuat otomatis oleh langkah *Unduh bundel* di GitHub Actions (`tools/fetch_bundle.py`). Berkas ini tidak di-commit ke repo. Tafsir tidak ikut bundel. |
 
 ## Cara build
@@ -16,6 +16,11 @@ Sumber data: **EQuran.id API v2** (`https://equran.id/api/v2`), tanpa API key da
 2. Tab **Actions → Build APK**. APK ada di *Artifacts*. Langkah pertama mengunduh bundel dari equran.id; jika gagal, build tetap lanjut dan aplikasi akan mengunduh data saat pertama dibuka.
 3. Opsional: secret `ADMOB_APP_ID`, `ADMOB_BANNER_ID`, `ADMOB_REWARDED_ID`. Jika kosong, dipakai ID uji Google.
 4. Cloudflare Worker dan secret `PROXY_BASE_URL`/`APP_KEY` dari versi sebelumnya **tidak dipakai lagi** dan boleh dihapus.
+
+## Antarmuka
+- **Rentang:** nomor ayat dipilih dengan tombol −/+, roda angka (geser, lalu menempel ke angka terdekat), atau ketuk angka untuk mengetik manual.
+- **Riwayat:** tombol *Hapus semua* meminta konfirmasi lebih dulu.
+- **Qari:** dipilih dari layar Rentang atau Unduhan.
 
 ## Iklan
 - Banner hanya di Beranda, Riwayat, dan Unduhan. Tidak pernah di Pemutar.
@@ -32,11 +37,17 @@ Syarat layanan EQuran.id (equran.id/terms) **tidak menyebut iklan atau penggunaa
 Karena itu, **tanyakan tertulis ke EQuran.id** sebelum rilis publik: (1) apakah aplikasi beriklan boleh memakai API-nya, (2) apakah teks boleh dibundel di dalam APK, (3) apakah mengunduh seluruh 114 surat sekali saja dapat diterima.
 Jika jawabannya tidak, hapus langkah *Unduh bundel* di workflow, dan pertimbangkan sumber lain yang izinnya tegas.
 
+### Al Quran Cloud (audio qari tambahan)
+Syarat mereka (alquran.cloud/terms-and-conditions, diperbarui 14 Juni 2026): rekaman dilisensikan untuk redistribusi gratis non-komersial dan boleh dialirkan serta diunduh untuk penggunaan personal dan edukasi. Rekaman **boleh dibundel ke produk komersial, tetapi hak cipta tetap pada para qari dan mereka dapat meminta konten dihapus**. Jadi izin untuk aplikasi beriklan bersyarat, bukan jaminan. Atribusi sudah ada di layar Unduhan. Hubungi mereka (islamic.network/contact.html) jika ingin kepastian tertulis.
+
+### Pembaca tafsir
+Memakai suara bawaan Android, bukan suara AI awan. Teks tafsir dibacakan langsung di HP pengguna. **Jangan** membuat dan menghosting berkas audio tafsir sendiri tanpa izin EQuran.id, karena tafsirnya dilindungi hak cipta mereka.
+
 ## Yang belum diverifikasi
 - **Kode belum dikompilasi di lingkungan pembuatnya.** Build pertama di GitHub Actions adalah ujinya.
 - Bentuk respons: `surat/{id}` (`nomorAyat`, `teksArab`, `teksLatin`, `teksIndonesia`, `audio{"05":url}`) sesuai dokumentasi. Bidang `nama`, `arti`, `tempatTurun` pada daftar surat, dan `tafsir[].ayat/teks` pada endpoint tafsir, **belum terkonfirmasi** (situs memblokir akses otomatis). Jika kosong atau berbeda, sesuaikan di `data/QuranDb.kt` dan `QuranRepository.parseTafsir`.
-- ID qari `05` = Misyari Rasyid Al-Afasy berdasarkan urutan di dokumentasi. Pilihan qari belum ada di antarmuka.
+- Nama 6 qari EQuran.id (01-06) mengikuti urutan di dokumentasi mereka. Tiga qari Al Quran Cloud (`ar.minshawi`, `ar.minshawimujawwad`, `ar.abdulbasitmurattal`) ditandai bertipe "translation" di API mereka; jika audionya tidak muncul, hapus dari `data/Reciters.kt`.
 - URL audio berawalan `http://` diubah otomatis ke `https://`.
 
 ## Belum ada
-Pemutaran di latar belakang dengan notifikasi, pilihan qari, audio terjemahan (TTS), font Arab Amiri.
+Pemutaran di latar belakang dengan notifikasi, audio terjemahan (TTS), mode putar ayat lalu tafsir otomatis, font Arab Amiri.

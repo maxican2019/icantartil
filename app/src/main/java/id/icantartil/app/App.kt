@@ -3,6 +3,7 @@ package id.icantartil.app
 import android.app.Application
 import id.icantartil.app.ads.Ads
 import id.icantartil.app.audio.AudioEngine
+import id.icantartil.app.audio.Narrator
 import id.icantartil.app.data.Prefs
 
 class App : Application() {
@@ -10,6 +11,7 @@ class App : Application() {
         super.onCreate()
         Prefs.init(this)
         AudioEngine.init(this)
+        Narrator.init(this)
         Ads.init(this)
     }
 }

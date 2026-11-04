@@ -20,8 +20,42 @@ class QuranRepository(private val ctx: Context) {
 
     suspend fun chapters(): List<Chapter> = withContext(Dispatchers.IO) { db.chapters() }
 
-    suspend fun ayahs(chapter: Int, from: Int, to: Int): List<Ayah> =
-        withContext(Dispatchers.IO) { db.ayahs(chapter, from, to, Prefs.reciter) }
+    /** Teks dari database lokal; URL audio sesuai qari terpilih (EQuran.id atau Al Quran Cloud). */
+    suspend fun ayahs(chapter: Int, from: Int, to: Int): List<Ayah> {
+        val r = Reciters.byId(Prefs.reciter)
+        val rows = withContext(Dispatchers.IO) { db.ayahs(chapter, from, to, if (r.source == Reciters.EQ) r.key else "05") }
+        if (r.source == Reciters.EQ) return rows
+        val count = withContext(Dispatchers.IO) { db.ayahCount(chapter) }
+        val urls = cloudUrls(r, chapter, count)
+        return rows.map { it.copy(audioUrl = urls[it.number] ?: "") }
+    }
+
+    /**
+     * URL audio per ayat dari api.alquran.cloud (sudah memuat bitrate yang benar), disimpan di database.
+     * Jika API gagal, dipakai pola CDN: cdn.islamic.network/quran/audio/128/{edisi}/{nomor ayat global}.mp3
+     * (pola cadangan ini tidak disimpan, supaya tidak mengunci URL yang mungkin salah bitrate).
+     */
+    private suspend fun cloudUrls(r: Reciter, surat: Int, count: Int): Map<Int, String> {
+        val cached = withContext(Dispatchers.IO) { db.cloudUrls(r.id, surat) }
+        if (cached.size >= count) return cached
+        val map = LinkedHashMap<Int, String>()
+        try {
+            val arr = getRetry(CloudApi, "/surah/$surat/${r.key}").getJSONObject("data").getJSONArray("ayahs")
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                var u = o.str("audio")
+                if (u.isBlank()) o.optJSONArray("audioSecondary")?.let { if (it.length() > 0) u = it.getString(0) }
+                if (u.isNotBlank()) map[o.getInt("numberInSurah")] = if (u.startsWith("http://")) "https://" + u.removePrefix("http://") else u
+            }
+        } catch (e: CancellationException) { throw e } catch (e: Exception) { /* pakai pola CDN di bawah */ }
+        if (map.size >= count) {
+            withContext(Dispatchers.IO) { db.putCloudUrls(r.id, surat, map) }
+            return map
+        }
+        val g = withContext(Dispatchers.IO) { db.globalStart(surat) }
+        for (n in 1..count) map.putIfAbsent(n, "https://cdn.islamic.network/quran/audio/128/${r.key}/${g + n}.mp3")
+        return map
+    }
 
     suspend fun syncedAt(): Long = withContext(Dispatchers.IO) { db.getMeta("synced_at")?.toLongOrNull() ?: 0L }
 
@@ -46,10 +80,12 @@ class QuranRepository(private val ctx: Context) {
         } catch (e: Exception) { false }
     }
 
-    private suspend fun getRetry(path: String): JSONObject {
+    private suspend fun getRetry(path: String): JSONObject = getRetry(null, path)
+
+    private suspend fun getRetry(cloud: CloudApi?, path: String): JSONObject {
         var last: Exception? = null
         for (i in 0 until 3) {
-            try { return EQuranApi.get(path) }
+            try { return if (cloud != null) cloud.get(path) else EQuranApi.get(path) }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { last = e; delay(800L * (i + 1)) }
         }

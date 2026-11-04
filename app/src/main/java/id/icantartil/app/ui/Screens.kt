@@ -31,6 +31,7 @@ import id.icantartil.app.R
 import id.icantartil.app.audio.AudioEngine
 import id.icantartil.app.audio.PlayState
 import id.icantartil.app.data.Chapter
+import id.icantartil.app.data.Reciters
 import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.LocalDate
@@ -63,15 +64,8 @@ fun AppRoot(vm: AppVm = viewModel()) {
                 }
             }
             vm.busy?.let { BusyOverlay(it) }
-            vm.tafsirView?.let { (title, body) ->
-                AlertDialog(
-                    onDismissRequest = { vm.closeTafsir() },
-                    confirmButton = { TextButton({ vm.closeTafsir() }) { Text("Tutup", color = LightGold) } },
-                    title = { Text(title, fontSize = 17.sp) },
-                    text = { Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) { Text(body, fontSize = 14.sp) } },
-                    containerColor = DeepGreen, titleContentColor = LightGold, textContentColor = Color.White,
-                )
-            }
+            vm.tafsirView?.let { (title, body) -> TafsirDialog(vm, title, body) }
+            if (vm.showReciters) ReciterDialog(vm)
         }
     }
 }
@@ -165,23 +159,28 @@ fun HomeScreen(vm: AppVm) {
 @Composable
 fun RangeScreen(vm: AppVm) {
     val c = vm.chapter(vm.chapterId)
+    val count = c?.count ?: 1
     Column(Modifier.fillMaxSize().background(Green)) {
         TopBar("Pilih Rentang Ayat") { vm.screen = Screen.Home }
-        Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-            ListRow(
-                vm.chapterId.toString(), c?.name ?: "Surat ${vm.chapterId}", "${c?.count ?: "?"} ayat · ketuk untuk ganti surat",
-                bg = Color.White, onClick = { vm.screen = Screen.Home },
-            ) { Text(c?.arabic.orEmpty(), color = DeepGreen, fontSize = 24.sp) }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Stepper("Dari ayat", vm.from.toString(), Modifier.weight(1f), { vm.updateFrom(vm.from - 1) }, { vm.updateFrom(vm.from + 1) })
-                Stepper("Sampai ayat", vm.to.toString(), Modifier.weight(1f), { vm.updateTo(vm.to - 1) }, { vm.updateTo(vm.to + 1) })
-            }
-            Spacer(Modifier.height(10.dp))
-            LoopChips(vm)
-            Spacer(Modifier.height(12.dp))
-            Text("Ayat dalam rentang", color = LightGold, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-        }
         LazyColumn(Modifier.weight(1f).padding(horizontal = 20.dp)) {
+            item {
+                Column(Modifier.padding(vertical = 8.dp)) {
+                    ListRow(
+                        vm.chapterId.toString(), c?.name ?: "Surat ${vm.chapterId}", "${c?.count ?: "?"} ayat · ketuk untuk ganti surat",
+                        bg = Color.White, onClick = { vm.screen = Screen.Home },
+                    ) { Text(c?.arabic.orEmpty(), color = DeepGreen, fontSize = 24.sp) }
+                    ReciterRow(vm)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        AyahStepper("Dari ayat", vm.from, 1, count, Modifier.weight(1f)) { vm.updateFrom(it) }
+                        AyahStepper("Sampai ayat", vm.to, vm.from, count, Modifier.weight(1f)) { vm.updateTo(it) }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    LoopChips(vm)
+                    Spacer(Modifier.height(12.dp))
+                    Text("Ayat dalam rentang", color = LightGold, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
             items(vm.ayahs, key = { it.number }) { a ->
                 val inRange = a.number in vm.from..vm.to
                 Row(
@@ -274,6 +273,8 @@ private val RoundedCornerShapeSmall = androidx.compose.foundation.shape.RoundedC
 
 @Composable
 fun HistoryScreen(vm: AppVm, st: PlayState) {
+    var confirm by remember { mutableStateOf(false) }
+    if (confirm) ConfirmClearDialog(vm.history.size, onConfirm = { vm.clearHistory(); confirm = false }, onCancel = { confirm = false })
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now(zone)
     val groups = vm.history.groupBy { Instant.ofEpochMilli(it.at).atZone(zone).toLocalDate() }
@@ -283,7 +284,7 @@ fun HistoryScreen(vm: AppVm, st: PlayState) {
                 Text("Riwayat", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                 Text("Rentang yang pernah diputar", color = Mist, fontSize = 13.sp)
             }
-            OutlineButton("Hapus semua") { vm.clearHistory() }
+            OutlineButton("Hapus semua") { if (vm.history.isNotEmpty()) confirm = true }
         }
         if (vm.history.isEmpty()) Text("Belum ada rentang yang diputar.", color = Mist, modifier = Modifier.padding(20.dp))
         LazyColumn(Modifier.weight(1f).padding(horizontal = 20.dp, vertical = 16.dp)) {
@@ -341,7 +342,9 @@ fun StorageScreen(vm: AppVm) {
             OutlineButton("Perbarui data", Modifier.weight(1f)) { vm.refreshData() }
             OutlineButton("Bersihkan cache", Modifier.weight(1f)) { vm.clearAudio() }
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(12.dp))
+        ReciterRow(vm)
+        Spacer(Modifier.height(12.dp))
         Text("Bebas iklan", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Text(
             if (vm.isAdFree) "Bebas iklan sampai pukul ${fmtTime(vm.adFreeUntil)}" else "Iklan banner sedang aktif",
@@ -361,7 +364,8 @@ fun StorageScreen(vm: AppVm) {
         Spacer(Modifier.height(24.dp))
         Text(
             "Sumber data: Kementerian Agama RI, melalui EQuran.id (equran.id). " +
-                "Audio murottal: Verse By Verse Quran (everyayah.com), melalui EQuran.id.",
+                "Audio murottal: Verse By Verse Quran (everyayah.com), melalui EQuran.id. " +
+                "Audio qari tambahan: Al Quran Cloud / Islamic Network (cdn.islamic.network); hak cipta rekaman milik para qari.",
             color = Mist, fontSize = 12.sp,
         )
     }

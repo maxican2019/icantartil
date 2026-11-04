@@ -18,9 +18,9 @@ object Prefs {
     var syncFilter: String?
         get() = sp.getString("sync_filter", null)
         set(v) { sp.edit().putString("sync_filter", v).apply() }
-    /** ID qari EQuran.id (01-06); 05 = Misyari Rasyid Al-Afasy menurut urutan di dokumentasi. */
+    /** ID qari gabungan: "eq:05" (EQuran.id) atau "ac:ar.alafasy" (Al Quran Cloud). */
     var reciter: String
-        get() = sp.getString("reciter", "05") ?: "05"
+        get() { val v = sp.getString("reciter", "eq:05") ?: "eq:05"; return if (':' in v) v else "eq:$v" }
         set(v) { sp.edit().putString("reciter", v).apply() }
     var lastSyncAt: Long
         get() = sp.getLong("last_sync", 0L)
