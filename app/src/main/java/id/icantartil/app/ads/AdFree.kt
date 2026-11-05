@@ -1,4 +1,4 @@
-package id.icantartil.app.ads
+package com.icandomore.icantartil.ads
 
 import java.time.Instant
 import java.time.ZoneId
