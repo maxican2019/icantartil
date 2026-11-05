@@ -50,7 +50,7 @@ fun AppRoot(vm: AppVm = viewModel()) {
     LaunchedEffect(vm.toast) { vm.toast?.let { Toast.makeText(ctx, it, Toast.LENGTH_LONG).show(); vm.toast = null } }
     Surface(Modifier.fillMaxSize(), color = Green, contentColor = Color.White) {
         Box {
-            Column(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
                 Box(Modifier.weight(1f)) {
                     when (vm.screen) {
                         Screen.Home -> HomeScreen(vm)
@@ -73,9 +73,10 @@ fun AppRoot(vm: AppVm = viewModel()) {
                         }
                     }, vm::center)
                 }
+                // Layar Pemutar tidak punya menu bawah: sisakan ruang untuk bilah navigasi sistem.
+                if (vm.screen == Screen.Player) Spacer(Modifier.navigationBarsPadding())
             }
             vm.busy?.let { BusyOverlay(it) }
-            if (vm.showVoices) VoiceDialog(vm)
             if (vm.showReciters) ReciterDialog(vm)
         }
     }

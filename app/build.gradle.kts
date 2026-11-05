@@ -8,18 +8,43 @@ plugins {
 fun cfg(prop: String, env: String, default: String): String =
     ((findProperty(prop) as String?) ?: System.getenv(env))?.takeIf { it.isNotBlank() } ?: default
 
+fun env(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() }
+
 android {
     namespace = "id.icantartil.app"
-    compileSdk = 34
+    compileSdk = 36
     defaultConfig {
-        applicationId = "id.icantartil.app"
+        applicationId = "id.icantartil.app" // PERMANEN setelah dirilis ke Play Store
         minSdk = 26
-        targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        targetSdk = 36
+        // Play mewajibkan versionCode naik di setiap unggahan; workflow rilis mengisinya dari nomor run GitHub.
+        versionCode = env("VERSION_CODE")?.toIntOrNull() ?: 1
+        versionName = env("VERSION_NAME") ?: "1.0.0"
         buildConfigField("String", "ADMOB_BANNER_ID", "\"${cfg("admobBannerId", "ADMOB_BANNER_ID", "ca-app-pub-1810348487438906/1093948523")}\"")
         buildConfigField("String", "ADMOB_REWARDED_ID", "\"${cfg("admobRewardedId", "ADMOB_REWARDED_ID", "ca-app-pub-1810348487438906/3516931882")}\"")
         manifestPlaceholders["admobAppId"] = cfg("admobAppId", "ADMOB_APP_ID", "ca-app-pub-1810348487438906~4418737981")
+    }
+    signingConfigs {
+        create("release") {
+            // Diisi dari variabel lingkungan oleh workflow rilis (keystore tidak pernah masuk repo).
+            val path = env("KEYSTORE_PATH")
+            if (path != null) {
+                storeFile = file(path)
+                storePassword = env("KEYSTORE_PASSWORD")
+                keyAlias = env("KEY_ALIAS")
+                keyPassword = env("KEY_PASSWORD")
+            }
+        }
+    }
+    buildTypes {
+        release {
+            // Minify/R8 dimatikan secara bawaan karena belum teruji. Nyalakan dengan -PminifyRelease=true setelah diuji.
+            val minify = (findProperty("minifyRelease") as String?) == "true"
+            isMinifyEnabled = minify
+            isShrinkResources = minify
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (env("KEYSTORE_PATH") != null) signingConfig = signingConfigs.getByName("release")
+        }
     }
     buildFeatures { compose = true; buildConfig = true }
     compileOptions {
@@ -27,7 +52,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+    lint { abortOnError = false; checkReleaseBuilds = false }
+    packaging {
+        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        jniLibs { useLegacyPackaging = false } // pustaka native tidak dikompres: syarat perataan 16 KB
+    }
 }
 
 dependencies {

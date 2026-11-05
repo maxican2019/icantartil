@@ -28,13 +28,6 @@ object Prefs {
     var tafsirAuto: Boolean
         get() = sp.getBoolean("t_auto", true)
         set(v) { sp.edit().putBoolean("t_auto", v).apply() }
-    /** Nama suara TTS yang ditandai pengguna sebagai suara wanita/pria (Android tidak memberi tahu jenis kelamin). */
-    var voiceFemale: String?
-        get() = sp.getString("v_female", null)
-        set(v) { sp.edit().putString("v_female", v).apply() }
-    var voiceMale: String?
-        get() = sp.getString("v_male", null)
-        set(v) { sp.edit().putString("v_male", v).apply() }
     var lastSyncAt: Long
         get() = sp.getLong("last_sync", 0L)
         set(v) { sp.edit().putLong("last_sync", v).apply() }

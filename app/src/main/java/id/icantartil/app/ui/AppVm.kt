@@ -43,7 +43,6 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     var tafsirItems by mutableStateOf<List<Pair<Int, String>>>(emptyList()); private set
     var tafsirDone by mutableStateOf<Set<Int>>(emptySet()); private set
     var tafsirFocus by mutableIntStateOf(1); private set
-    var showVoices by mutableStateOf(false)
     var reciter by mutableStateOf(Prefs.reciter); private set
     var showReciters by mutableStateOf(false)
 
@@ -228,10 +227,6 @@ class AppVm(app: Application) : AndroidViewModel(app) {
             }
             busy = null
         }
-    }
-
-    fun openVoices() {
-        Narrator.prepare { ok -> if (ok) showVoices = true else toast = Narrator.state.value.error ?: "Suara Bahasa Indonesia belum tersedia." }
     }
 
     /** Ketuk kotak "Sedang diputar": masuk ke layar pemutar TANPA menjeda audio; jika belum ada, putar riwayat terakhir. */

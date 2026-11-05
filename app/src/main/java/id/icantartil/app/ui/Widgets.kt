@@ -190,7 +190,7 @@ private fun NavItem(label: String, selected: Boolean, modifier: Modifier, onClic
 /** Menu bawah: tombol Play di tengah memutar ulang rentang terakhir, lalu berubah jadi Pause. */
 @Composable
 fun NavBar(cur: Screen, playing: Boolean, go: (Screen) -> Unit, onPlay: () -> Unit) {
-    Column {
+    Column(Modifier.background(DeepGreen).navigationBarsPadding()) {
         Box(Modifier.fillMaxWidth().height(2.dp).background(Gold))
         Row(Modifier.fillMaxWidth().height(64.dp).background(DeepGreen).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             NavItem("Surat", cur == Screen.Home, Modifier.weight(1f)) { go(Screen.Home) }

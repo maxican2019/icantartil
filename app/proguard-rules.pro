@@ -1,1 +1,5 @@
-# aturan proguard (build debug tidak memakai minify)
+# Dipakai hanya jika -PminifyRelease=true. Belum diuji; uji menyeluruh sebelum mengunggah.
+-dontwarn org.conscrypt.**
+-dontwarn org.bouncycastle.**
+-dontwarn org.openjsse.**
+-keep class id.icantartil.app.data.** { *; }

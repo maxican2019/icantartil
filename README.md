@@ -11,6 +11,9 @@ Sumber data: **EQuran.id API v2** (`https://equran.id/api/v2`), tanpa API key da
 | Tafsir | Menu **Tafsir** (tab bawah) berisi daftar surat; ketuk surat untuk memuat tafsirnya (diambil saat dibutuhkan lalu disimpan di database), atau tekan *Unduh semua tafsir* untuk 114 surat sekaligus. Pembaca menampilkan **hanya teks tafsir per ayat**. Audio memakai suara sintetis bawaan Android: putar/jeda, ayat sebelumnya/berikutnya, **otomatis lanjut ke ayat berikutnya** setelah satu ayat selesai (bisa dimatikan), kecepatan, dan pilihan suara **Wanita/Pria**. Kalimat yang sedang dibaca disorot. Dari layar Pemutar, tombol *Tafsir ayat N* membuka tafsir ayat yang sedang dilantunkan. |
 | Cadangan jika API mati | **Bundel JSON bawaan APK** (`assets/quran_bundle.json`), dibuat otomatis oleh langkah *Unduh bundel* di GitHub Actions (`tools/fetch_bundle.py`). Berkas ini tidak di-commit ke repo. Tafsir tidak ikut bundel. |
 
+## Publikasi ke Play Store
+Lihat **`docs/PUBLISH.md`** (langkah lengkap), `docs/store-listing.md`, `docs/data-safety.md`, kebijakan privasi `docs/index.html`, dan aset toko di `store/`. Workflow **Release AAB** membangun AAB bertanda tangan. Target API 36, AGP 8.13, Gradle 8.14.
+
 ## Cara build
 1. Push folder ini ke GitHub. Tidak ada secret wajib.
 2. Tab **Actions → Build APK**. APK ada di *Artifacts*. Langkah pertama mengunduh bundel dari equran.id; jika gagal, build tetap lanjut dan aplikasi akan mengunduh data saat pertama dibuka.

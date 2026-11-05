@@ -24,10 +24,14 @@ data class NarratorState(
 /**
  * Pembaca tafsir memakai suara sintetis bawaan Android (TextToSpeech, bahasa Indonesia).
  * Gratis dan tanpa kunci API; bisa offline jika data suara terpasang. Android tidak menyediakan jenis kelamin
- * suara, jadi pengguna menandai suara wanita/pria sendiri (VoiceDialog). Jika belum ditandai, dipakai tebakan
- * berdasarkan urutan suara plus penyesuaian nada.
+ * suara, jadi suara wanita/pria ditetapkan lewat nama suara (FEMALE_VOICE/MALE_VOICE). Jika suara itu tidak ada
+ * di HP, dipakai tebakan berdasarkan urutan suara plus penyesuaian nada.
  */
 object Narrator {
+    /** Suara bawaan yang dipilih pengembang (Google TTS Indonesia). */
+    private const val FEMALE_VOICE = "id-id-x-idc-local"
+    private const val MALE_VOICE = "id-id-x-ide-local"
+
     private lateinit var app: Application
     private var tts: TextToSpeech? = null
     private var ready = false
@@ -94,10 +98,9 @@ object Narrator {
     private fun applyVoice(t: TextToSpeech) {
         val female = _state.value.female
         val vs = idVoices(t)
-        val assigned = if (female) Prefs.voiceFemale else Prefs.voiceMale
-        var v = vs.firstOrNull { it.name == assigned }
+        var v = vs.firstOrNull { it.name == (if (female) FEMALE_VOICE else MALE_VOICE) }
         var pitch = 1f
-        if (v == null) { // belum ditandai: tebakan urutan + nada
+        if (v == null) { // suara bawaan tidak ada di HP ini: tebakan urutan + penyesuaian nada
             v = if (vs.size >= 2) (if (female) vs[0] else vs[1]) else vs.firstOrNull()
             pitch = if (female) 1.1f else 0.85f
         }
@@ -117,25 +120,6 @@ object Narrator {
         t.stop(); applyVoice(t); t.setSpeechRate(_state.value.rate)
         for (k in from until sents.size) t.speak(sents[k], TextToSpeech.QUEUE_ADD, null, "u${u}s$k")
         _state.value = _state.value.copy(speaking = true, unit = u, idx = from, error = null)
-    }
-
-    /** Siapkan mesin suara; [done] dipanggil dengan true jika suara Indonesia tersedia. */
-    fun prepare(done: (Boolean) -> Unit) = ensure(done)
-
-    fun voiceNames(): List<String> = tts?.let { t -> idVoices(t).map { it.name } } ?: emptyList()
-
-    fun assign(name: String, female: Boolean) { if (female) Prefs.voiceFemale = name else Prefs.voiceMale = name }
-
-    fun preview(name: String) {
-        ensure { ok ->
-            val t = tts
-            val v = if (ok && t != null) idVoices(t).firstOrNull { it.name == name } else null
-            if (t != null && v != null) {
-                AudioEngine.player.pause(); t.stop()
-                t.setVoice(v); t.setPitch(1f); t.setSpeechRate(1f)
-                t.speak("Bismillahirrahmanirrahim. Ini contoh suara untuk membacakan tafsir.", TextToSpeech.QUEUE_FLUSH, null, "preview")
-            }
-        }
     }
 
     /** Muat daftar ayat (tiap ayat = daftar kalimat) yang akan dibacakan. */

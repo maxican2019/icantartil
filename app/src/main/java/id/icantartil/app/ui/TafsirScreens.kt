@@ -94,10 +94,7 @@ private fun TafsirReader(vm: AppVm) {
                 Chip(Narrator.rateLabel(ns.rate), Modifier.weight(1f)) { Narrator.cycleRate() }
                 Chip(if (ns.auto) "Lanjut otomatis" else "Satu ayat", Modifier.weight(1f)) { Narrator.toggleAuto() }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton({ vm.openVoices() }) { Text("Atur suara…", color = LightGold, fontSize = 12.sp) }
-                Text("Ketuk ayat untuk memutar dari sana", color = Mist, fontSize = 12.sp)
-            }
+            Text("Ketuk ayat untuk memutar dari sana", color = Mist, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
             ns.error?.let { Text(it, color = Color(0xFFFF8A80), fontSize = 12.sp) }
         }
         if (items.isEmpty()) {
