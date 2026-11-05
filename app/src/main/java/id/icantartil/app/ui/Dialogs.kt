@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -31,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import id.icantartil.app.audio.Narrator
 import id.icantartil.app.audio.TafsirText
+import id.icantartil.app.data.Prefs
 import id.icantartil.app.data.Reciter
 import id.icantartil.app.data.Reciters
 import kotlinx.coroutines.launch
@@ -186,48 +188,39 @@ fun ReciterDialog(vm: AppVm) {
     )
 }
 
-// ---------------------------------------------------------------- Tafsir + pembaca
+// ---------------------------------------------------------------- Suara tafsir
 
+/** Android tidak memberi tahu jenis kelamin suara, jadi pengguna mendengarkan lalu menandai sendiri. */
 @Composable
-fun TafsirDialog(vm: AppVm, title: String, body: String) {
-    val ns by Narrator.state.collectAsState()
-    val sentences = remember(body) { TafsirText.split(body) }
-    val starts = remember(sentences) { var p = 0; sentences.map { s -> val st = p; p += s.length + 1; st } }
-    val scroll = rememberScrollState()
-    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
-    val annotated = remember(sentences, ns.idx) {
-        buildAnnotatedString {
-            sentences.forEachIndexed { i, s ->
-                if (i == ns.idx) withStyle(SpanStyle(background = Gold, color = DeepGreen)) { append(s) } else append(s)
-                append(" ")
-            }
-        }
-    }
-    // Sorot kalimat yang sedang dibaca dan gulung teks mengikutinya.
-    LaunchedEffect(ns.idx) {
-        val l = layout
-        if (l != null && ns.idx in starts.indices) scroll.animateScrollTo(l.getLineTop(l.getLineForOffset(starts[ns.idx])).toInt())
-    }
-    DisposableEffect(Unit) { onDispose { Narrator.stop() } } // menutup dialog menghentikan bacaan
+fun VoiceDialog(vm: AppVm) {
+    var tick by remember { mutableIntStateOf(0) }
+    val names = remember { Narrator.voiceNames() }
+    val female = remember(tick) { Prefs.voiceFemale }
+    val male = remember(tick) { Prefs.voiceMale }
     AlertDialog(
-        onDismissRequest = { vm.closeTafsir() },
-        confirmButton = { TextButton({ vm.closeTafsir() }) { Text("Tutup", color = LightGold) } },
-        title = { Text(title, fontSize = 17.sp) },
+        onDismissRequest = { vm.showVoices = false },
+        confirmButton = { TextButton({ vm.showVoices = false }) { Text("Tutup", color = LightGold) } },
+        title = { Text("Atur suara tafsir", fontSize = 17.sp) },
         text = {
             Column {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Chip(if (ns.speaking) "Jeda" else if (ns.idx >= 0) "Lanjut" else "Putar", Modifier.weight(1f)) {
-                        if (ns.speaking) Narrator.pause() else if (ns.idx >= 0) Narrator.resume() else Narrator.play(sentences)
-                    }
-                    Chip("Berhenti", Modifier.weight(1f)) { Narrator.stop() }
-                    Chip(Narrator.rateLabel(ns.rate), Modifier.weight(1f)) { Narrator.cycleRate() }
-                }
-                ns.error?.let { Text(it, color = Warn, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)) }
-                Spacer(Modifier.height(8.dp))
                 Text(
-                    annotated, fontSize = 14.sp, lineHeight = 22.sp, onTextLayout = { layout = it },
-                    modifier = Modifier.heightIn(max = 300.dp).verticalScroll(scroll),
+                    "Android tidak memberi tahu mana suara wanita atau pria. Tekan Coba, lalu tandai suara yang cocok.",
+                    color = Mist, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp),
                 )
+                if (names.isEmpty()) Text("Belum ada suara Bahasa Indonesia terpasang.", color = Color.White)
+                LazyColumn(Modifier.heightIn(max = 320.dp)) {
+                    itemsIndexed(names) { i, name ->
+                        Column(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+                            Text("Suara ${i + 1}", color = LightGold, fontWeight = FontWeight.Bold)
+                            Text(name, color = Mist, fontSize = 11.sp)
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
+                                Chip("Coba", Modifier.weight(1f)) { Narrator.preview(name) }
+                                Chip(if (female == name) "✓ Wanita" else "Wanita", Modifier.weight(1f)) { Narrator.assign(name, true); tick++ }
+                                Chip(if (male == name) "✓ Pria" else "Pria", Modifier.weight(1f)) { Narrator.assign(name, false); tick++ }
+                            }
+                        }
+                    }
+                }
             }
         },
         containerColor = DeepGreen, titleContentColor = LightGold, textContentColor = Color.White,

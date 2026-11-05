@@ -4,7 +4,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// Nilai dibaca dari -P<prop>, lalu env var, lalu default (ID uji Google).
+// Nilai dibaca dari -P<prop>, lalu env var, lalu default (ID AdMob IcanTartil; ID bukan rahasia).
 fun cfg(prop: String, env: String, default: String): String =
     ((findProperty(prop) as String?) ?: System.getenv(env))?.takeIf { it.isNotBlank() } ?: default
 
@@ -17,9 +17,9 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
-        buildConfigField("String", "ADMOB_BANNER_ID", "\"${cfg("admobBannerId", "ADMOB_BANNER_ID", "ca-app-pub-3940256099942544/6300978111")}\"")
-        buildConfigField("String", "ADMOB_REWARDED_ID", "\"${cfg("admobRewardedId", "ADMOB_REWARDED_ID", "ca-app-pub-3940256099942544/5224354917")}\"")
-        manifestPlaceholders["admobAppId"] = cfg("admobAppId", "ADMOB_APP_ID", "ca-app-pub-3940256099942544~3347511713")
+        buildConfigField("String", "ADMOB_BANNER_ID", "\"${cfg("admobBannerId", "ADMOB_BANNER_ID", "ca-app-pub-1810348487438906/1093948523")}\"")
+        buildConfigField("String", "ADMOB_REWARDED_ID", "\"${cfg("admobRewardedId", "ADMOB_REWARDED_ID", "ca-app-pub-1810348487438906/3516931882")}\"")
+        manifestPlaceholders["admobAppId"] = cfg("admobAppId", "ADMOB_APP_ID", "ca-app-pub-1810348487438906~4418737981")
     }
     buildFeatures { compose = true; buildConfig = true }
     compileOptions {

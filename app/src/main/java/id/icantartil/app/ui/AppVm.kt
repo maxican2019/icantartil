@@ -9,13 +9,14 @@ import id.icantartil.app.ads.AdFree
 import id.icantartil.app.ads.Ads
 import id.icantartil.app.audio.AudioEngine
 import id.icantartil.app.audio.Narrator
+import id.icantartil.app.audio.TafsirText
 import id.icantartil.app.data.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.IOException
 
-enum class Screen { Home, Range, Player, History, Storage }
+enum class Screen { Home, Range, Player, History, Storage, Tafsir }
 
 class AppVm(app: Application) : AndroidViewModel(app) {
     private val repo = QuranRepository(app)
@@ -38,7 +39,11 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     var busy by mutableStateOf<String?>(null); private set
     var cacheTick by mutableIntStateOf(0); private set
     var toast by mutableStateOf<String?>(null)
-    var tafsirView by mutableStateOf<Pair<String, String>?>(null); private set
+    var tafsirChapter by mutableIntStateOf(0); private set          // 0 = daftar surat, selain itu = pembaca tafsir
+    var tafsirItems by mutableStateOf<List<Pair<Int, String>>>(emptyList()); private set
+    var tafsirDone by mutableStateOf<Set<Int>>(emptySet()); private set
+    var tafsirFocus by mutableIntStateOf(1); private set
+    var showVoices by mutableStateOf(false)
     var reciter by mutableStateOf(Prefs.reciter); private set
     var showReciters by mutableStateOf(false)
 
@@ -183,20 +188,56 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ---- Tafsir (diambil saat dibutuhkan, lalu disimpan) ----
-    fun openTafsir(chapter: Int, ayah: Int) {
+    // ---- Tafsir: menu per surat, pembaca per ayat, dan audio ----
+    fun openTafsirMenu() {
+        screen = Screen.Tafsir; tafsirChapter = 0
+        viewModelScope.launch { tafsirDone = repo.tafsirDownloaded() }
+    }
+
+    fun openTafsirChapter(c: Chapter, ayah: Int = 1) {
         viewModelScope.launch {
             busy = "Memuat tafsir…"
             guarded("Tafsir belum bisa dimuat. Periksa koneksi.") {
-                val t = repo.tafsir(chapter)[ayah]
-                tafsirView = "Tafsir ${name(chapter)} ayat $ayah" to
-                    (if (t.isNullOrBlank()) "Tafsir untuk ayat ini tidak tersedia." else t)
+                val m = repo.tafsir(c.id)
+                tafsirItems = m.entries.sortedBy { it.key }.map { it.key to it.value }
+                Narrator.load(tafsirItems.map { TafsirText.split(it.second) })
+                tafsirFocus = ayah; tafsirChapter = c.id; screen = Screen.Tafsir
+                tafsirDone = repo.tafsirDownloaded()
             }
             busy = null
         }
     }
 
-    fun closeTafsir() { tafsirView = null }
+    /** Dari layar Sedang diputar: buka tafsir surat dan ayat yang sedang dilantunkan. */
+    fun openTafsirAt(ch: Int, ayah: Int) { chapter(ch)?.let { openTafsirChapter(it, ayah) } }
+
+    fun leaveTafsirReader() { Narrator.stop(); tafsirChapter = 0 }
+
+    fun playTafsirFrom(ayah: Int) {
+        val i = tafsirItems.indexOfFirst { it.first == ayah }.coerceAtLeast(0)
+        tafsirFocus = tafsirItems.getOrNull(i)?.first ?: ayah
+        Narrator.play(i)
+    }
+
+    fun downloadAllTafsir() {
+        viewModelScope.launch {
+            busy = "Mengunduh tafsir…"
+            guarded("Gagal mengunduh tafsir. Periksa koneksi.") {
+                repo.downloadAllTafsir { d, t -> busy = "Mengunduh tafsir $d/$t" }
+                tafsirDone = repo.tafsirDownloaded(); toast = "Semua tafsir tersimpan"
+            }
+            busy = null
+        }
+    }
+
+    fun openVoices() {
+        Narrator.prepare { ok -> if (ok) showVoices = true else toast = Narrator.state.value.error ?: "Suara Bahasa Indonesia belum tersedia." }
+    }
+
+    /** Ketuk kotak "Sedang diputar": masuk ke layar pemutar TANPA menjeda audio; jika belum ada, putar riwayat terakhir. */
+    fun openNowPlaying() {
+        if (AudioEngine.state.value.active) screen = Screen.Player else history.firstOrNull()?.let { replay(it) }
+    }
 
     // ---- Iklan ----
     /** count = 1 -> bebas iklan 12 jam; count = 2 -> 24 jam. Selalu berakhir paling lambat pukul 00.00. */

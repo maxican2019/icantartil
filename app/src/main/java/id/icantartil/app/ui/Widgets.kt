@@ -18,6 +18,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -68,6 +69,15 @@ fun SkipGlyph(c: Color, forward: Boolean, sz: Dp = 28.dp) = Canvas(Modifier.size
     }
     drawPath(p, c)
     drawRect(c, Offset(if (forward) w * .72f else w * .2f, w * .2f), Size(w * .08f, w * .6f))
+}
+
+@Composable
+fun HistoryGlyph(c: Color, sz: Dp = 26.dp) = Canvas(Modifier.size(sz)) {
+    val w = size.width
+    val sw = w * 0.08f
+    drawCircle(c, radius = w * 0.4f, style = Stroke(width = sw))
+    drawLine(c, Offset(w * .5f, w * .5f), Offset(w * .5f, w * .26f), strokeWidth = sw)
+    drawLine(c, Offset(w * .5f, w * .5f), Offset(w * .67f, w * .6f), strokeWidth = sw)
 }
 
 @Composable
@@ -192,7 +202,7 @@ fun NavBar(cur: Screen, playing: Boolean, go: (Screen) -> Unit, onPlay: () -> Un
                     .semantics { contentDescription = if (playing) "Jeda" else "Putar rentang terakhir" },
                 contentAlignment = Alignment.Center,
             ) { if (playing) PauseGlyph(DeepGreen) else PlayGlyph(DeepGreen) }
-            NavItem("Riwayat", cur == Screen.History, Modifier.weight(1f)) { go(Screen.History) }
+            NavItem("Tafsir", cur == Screen.Tafsir, Modifier.weight(1f)) { go(Screen.Tafsir) }
             NavItem("Unduhan", cur == Screen.Storage, Modifier.weight(1f)) { go(Screen.Storage) }
         }
     }

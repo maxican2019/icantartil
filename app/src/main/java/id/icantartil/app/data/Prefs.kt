@@ -22,6 +22,19 @@ object Prefs {
     var reciter: String
         get() { val v = sp.getString("reciter", "eq:05") ?: "eq:05"; return if (':' in v) v else "eq:$v" }
         set(v) { sp.edit().putString("reciter", v).apply() }
+    var tafsirFemale: Boolean
+        get() = sp.getBoolean("t_female", true)
+        set(v) { sp.edit().putBoolean("t_female", v).apply() }
+    var tafsirAuto: Boolean
+        get() = sp.getBoolean("t_auto", true)
+        set(v) { sp.edit().putBoolean("t_auto", v).apply() }
+    /** Nama suara TTS yang ditandai pengguna sebagai suara wanita/pria (Android tidak memberi tahu jenis kelamin). */
+    var voiceFemale: String?
+        get() = sp.getString("v_female", null)
+        set(v) { sp.edit().putString("v_female", v).apply() }
+    var voiceMale: String?
+        get() = sp.getString("v_male", null)
+        set(v) { sp.edit().putString("v_male", v).apply() }
     var lastSyncAt: Long
         get() = sp.getLong("last_sync", 0L)
         set(v) { sp.edit().putLong("last_sync", v).apply() }

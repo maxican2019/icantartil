@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import id.icantartil.app.R
 import id.icantartil.app.audio.AudioEngine
+import id.icantartil.app.audio.Narrator
 import id.icantartil.app.audio.PlayState
 import id.icantartil.app.data.Chapter
 import id.icantartil.app.data.Reciters
@@ -43,7 +44,9 @@ import java.util.Locale
 fun AppRoot(vm: AppVm = viewModel()) {
     val st by AudioEngine.state.collectAsState()
     val ctx = LocalContext.current
-    BackHandler(vm.screen != Screen.Home) { vm.screen = Screen.Home }
+    BackHandler(vm.screen != Screen.Home) {
+        if (vm.screen == Screen.Tafsir && vm.tafsirChapter != 0) vm.leaveTafsirReader() else vm.screen = Screen.Home
+    }
     LaunchedEffect(vm.toast) { vm.toast?.let { Toast.makeText(ctx, it, Toast.LENGTH_LONG).show(); vm.toast = null } }
     Surface(Modifier.fillMaxSize(), color = Green, contentColor = Color.White) {
         Box {
@@ -55,16 +58,24 @@ fun AppRoot(vm: AppVm = viewModel()) {
                         Screen.Player -> PlayerScreen(vm, st)
                         Screen.History -> HistoryScreen(vm, st)
                         Screen.Storage -> StorageScreen(vm)
+                        Screen.Tafsir -> TafsirScreen(vm)
                     }
                 }
                 // Banner hanya di layar non-ibadah, dan hanya jika tidak sedang bebas iklan.
                 if (!vm.isAdFree && vm.screen in setOf(Screen.Home, Screen.History, Screen.Storage)) BannerAd()
                 if (vm.screen != Screen.Player) {
-                    NavBar(vm.screen, st.active && st.playing, { s -> if (s == Screen.Range) { vm.openRange() } else { vm.screen = s } }, vm::center)
+                    NavBar(vm.screen, st.active && st.playing, { s ->
+                        if (s != Screen.Tafsir) Narrator.stop()
+                        when (s) {
+                            Screen.Range -> vm.openRange()
+                            Screen.Tafsir -> vm.openTafsirMenu()
+                            else -> { vm.screen = s }
+                        }
+                    }, vm::center)
                 }
             }
             vm.busy?.let { BusyOverlay(it) }
-            vm.tafsirView?.let { (title, body) -> TafsirDialog(vm, title, body) }
+            if (vm.showVoices) VoiceDialog(vm)
             if (vm.showReciters) ReciterDialog(vm)
         }
     }
@@ -89,6 +100,7 @@ fun HomeScreen(vm: AppVm) {
     var q by remember { mutableStateOf("") }
     val h = vm.history.firstOrNull()
     val err = vm.error
+    val np by AudioEngine.state.collectAsState()
     val list = vm.chapters.filter { chapterMatches(it, q) }
     // Seluruh Beranda satu daftar yang bisa digulung, supaya header tidak menghabiskan layar.
     LazyColumn(Modifier.fillMaxSize().background(Color.White)) {
@@ -102,28 +114,42 @@ fun HomeScreen(vm: AppVm) {
                     "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ", color = LightGold, fontSize = 22.sp, textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
                 )
-                TextField(
-                    q, { q = it }, Modifier.fillMaxWidth(), singleLine = true, shape = Shape6,
-                    placeholder = { Text("Cari surat atau nomor") },
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.White, unfocusedContainerColor = Color.White,
-                        focusedTextColor = DeepGreen, unfocusedTextColor = DeepGreen, cursorColor = DeepGreen,
-                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
-                    ),
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TextField(
+                        q, { q = it }, Modifier.weight(1f), singleLine = true, shape = Shape6,
+                        placeholder = { Text("Cari surat atau nomor") },
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.White, unfocusedContainerColor = Color.White,
+                            focusedTextColor = DeepGreen, unfocusedTextColor = DeepGreen, cursorColor = DeepGreen,
+                            focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                        ),
+                    )
+                    Box(
+                        Modifier.size(56.dp).clip(Shape6).background(DeepGreen).border(1.dp, Gold, Shape6)
+                            .clickable { vm.screen = Screen.History }.semantics { contentDescription = "Riwayat" },
+                        contentAlignment = Alignment.Center,
+                    ) { HistoryGlyph(LightGold, 28.dp) }
+                }
+                // Ketuk kotak emas: masuk ke layar Sedang diputar tanpa menjeda audio. Tombol di kanan: putar/jeda.
+                val loopInfo = if (np.active) vm.loop else h?.loop
                 Row(
-                    Modifier.fillMaxWidth().padding(top = 14.dp).clip(Shape8).background(Gold).padding(horizontal = 16.dp, vertical = 14.dp),
+                    Modifier.fillMaxWidth().padding(top = 14.dp).clip(Shape8).background(Gold).clickable { vm.openNowPlaying() }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("Lanjutkan murojaah", color = DeepGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text(if (np.active) "Sedang diputar" else "Lanjutkan murojaah", color = DeepGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         Text(
-                            if (h != null) "${vm.name(h.chapter)} · ayat ${h.from}–${h.to}" else "Belum ada riwayat",
+                            when {
+                                np.active -> "${vm.name(np.chapter)} · ayat ${np.from}–${np.to}"
+                                h != null -> "${vm.name(h.chapter)} · ayat ${h.from}–${h.to}"
+                                else -> "Belum ada riwayat"
+                            },
                             color = DeepGreen, fontSize = 16.sp, fontWeight = FontWeight.Bold,
                         )
-                        Text(if (h != null) loopText(h.loop) else "Pilih surat di bawah untuk mulai", color = DeepGreen, fontSize = 12.sp)
+                        Text(if (loopInfo != null) loopText(loopInfo) else "Pilih surat di bawah untuk mulai", color = DeepGreen, fontSize = 12.sp)
                     }
-                    if (h != null) PlaySquare(false) { vm.replay(h) }
+                    if (np.active || h != null) PlaySquare(np.active && np.playing) { vm.center() }
                 }
             }
             Box(Modifier.fillMaxWidth().height(3.dp).background(Gold))
@@ -256,7 +282,7 @@ fun PlayerScreen(vm: AppVm, st: PlayState) {
                     }
                     LoopChips(vm) { vm.restart() }
                     Spacer(Modifier.height(10.dp))
-                    OutlineButton("Tafsir ayat ${st.ayah}", Modifier.fillMaxWidth()) { vm.openTafsir(st.chapter, st.ayah) }
+                    OutlineButton("Tafsir ayat ${st.ayah}", Modifier.fillMaxWidth()) { vm.openTafsirAt(st.chapter, st.ayah) }
                     Spacer(Modifier.height(12.dp))
                     Text("Antrean", color = LightGold, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
                 }
@@ -354,7 +380,7 @@ fun StorageScreen(vm: AppVm) {
         Spacer(Modifier.height(8.dp))
         GoldButton("Tonton 2 iklan · bebas iklan 24 jam", Modifier.fillMaxWidth()) { vm.watch(act, 2) }
         Spacer(Modifier.height(8.dp))
-        OutlineButton("Dukung developer (sukarela)", Modifier.fillMaxWidth()) { vm.support(act) }
+        OutlineButton("Tonton 1 iklan untuk dukung developer (sukarela)", Modifier.fillMaxWidth()) { vm.support(act) }
         Spacer(Modifier.height(10.dp))
         Text(
             "Masa bebas iklan berakhir paling lambat pukul 00.00, lalu iklan aktif kembali. " +

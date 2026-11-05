@@ -8,16 +8,17 @@ Sumber data: **EQuran.id API v2** (`https://equran.id/api/v2`), tanpa API key da
 |---|---|
 | Teks 114 surat (Arab, latin, terjemahan Indonesia) | Disimpan di **SQLite lokal** dan dibaca dari lokal (cepat, offline). Sekali saja diisi: dari **bundel bawaan APK** jika ada, jika tidak diunduh dari server (114 permintaan, dengan progres). Tombol *Perbarui data* di layar Unduhan mengunduh ulang. |
 | Audio | Qari dari **EQuran.id** (6) dan **Al Quran Cloud / Islamic Network** (19 qari per ayat). URL audio Al Quran Cloud diambil dari `api.alquran.cloud/v1/surah/{n}/{edisi}` lalu disimpan; jika API gagal dipakai pola CDN `cdn.islamic.network/quran/audio/128/{edisi}/{nomor ayat global}.mp3`. Streaming dengan cache LRU 200 MB. Rentang diunduh dulu sebelum diputar; tombol *Unduh seluruh surat* untuk satu surat penuh. |
-| Tafsir | Diambil **saat dibutuhkan** (tombol *Tafsir ayat N* di Pemutar), lalu disimpan di database. Bisa **dibacakan** dengan suara sintetis bawaan Android (Teks-ke-ucapan, bahasa Indonesia): Putar, Jeda/Lanjut, Berhenti, kecepatan 0,8×/1×/1,25×, dengan kalimat yang sedang dibaca disorot. Butuh data suara Indonesia terpasang di HP. |
+| Tafsir | Menu **Tafsir** (tab bawah) berisi daftar surat; ketuk surat untuk memuat tafsirnya (diambil saat dibutuhkan lalu disimpan di database), atau tekan *Unduh semua tafsir* untuk 114 surat sekaligus. Pembaca menampilkan **hanya teks tafsir per ayat**. Audio memakai suara sintetis bawaan Android: putar/jeda, ayat sebelumnya/berikutnya, **otomatis lanjut ke ayat berikutnya** setelah satu ayat selesai (bisa dimatikan), kecepatan, dan pilihan suara **Wanita/Pria**. Kalimat yang sedang dibaca disorot. Dari layar Pemutar, tombol *Tafsir ayat N* membuka tafsir ayat yang sedang dilantunkan. |
 | Cadangan jika API mati | **Bundel JSON bawaan APK** (`assets/quran_bundle.json`), dibuat otomatis oleh langkah *Unduh bundel* di GitHub Actions (`tools/fetch_bundle.py`). Berkas ini tidak di-commit ke repo. Tafsir tidak ikut bundel. |
 
 ## Cara build
 1. Push folder ini ke GitHub. Tidak ada secret wajib.
 2. Tab **Actions → Build APK**. APK ada di *Artifacts*. Langkah pertama mengunduh bundel dari equran.id; jika gagal, build tetap lanjut dan aplikasi akan mengunduh data saat pertama dibuka.
-3. Opsional: secret `ADMOB_APP_ID`, `ADMOB_BANNER_ID`, `ADMOB_REWARDED_ID`. Jika kosong, dipakai ID uji Google.
+3. ID AdMob IcanTartil sudah menjadi nilai bawaan di `app/build.gradle.kts` (ID iklan bukan rahasia). Secret `ADMOB_APP_ID`, `ADMOB_BANNER_ID`, `ADMOB_REWARDED_ID` di GitHub, jika diisi, menimpa nilai itu. **Jangan klik iklan asli sendiri**; daftarkan HP-mu sebagai perangkat uji di konsol AdMob.
 4. Cloudflare Worker dan secret `PROXY_BASE_URL`/`APP_KEY` dari versi sebelumnya **tidak dipakai lagi** dan boleh dihapus.
 
 ## Antarmuka
+- **Beranda:** ikon jam di samping kolom cari membuka Riwayat. Mengetuk kotak emas masuk ke layar *Sedang diputar* tanpa menjeda audio; tombol di kotak itu memutar/menjeda.
 - **Rentang:** nomor ayat dipilih dengan tombol −/+, roda angka (geser, lalu menempel ke angka terdekat), atau ketuk angka untuk mengetik manual.
 - **Riwayat:** tombol *Hapus semua* meminta konfirmasi lebih dulu.
 - **Qari:** dipilih dari layar Rentang atau Unduhan.
@@ -25,7 +26,7 @@ Sumber data: **EQuran.id API v2** (`https://equran.id/api/v2`), tanpa API key da
 ## Iklan
 - Banner hanya di Beranda, Riwayat, dan Unduhan. Tidak pernah di Pemutar.
 - **1 iklan → bebas iklan 12 jam. 2 iklan → bebas iklan 24 jam.** Berakhir paling lambat pukul 00.00 (jam lokal), lalu iklan aktif lagi. Logika di `ads/AdFree.kt` dan dites (`AdFreeTest`).
-- *Dukung developer (sukarela)* menampilkan satu iklan tanpa imbalan.
+- *Tonton 1 iklan untuk dukung developer (sukarela)* menampilkan satu iklan tanpa imbalan.
 
 ## Izin dan lisensi (baca sebelum rilis)
 Syarat layanan EQuran.id (equran.id/terms) **tidak menyebut iklan atau penggunaan komersial secara eksplisit**. Yang tertulis:
@@ -41,7 +42,7 @@ Jika jawabannya tidak, hapus langkah *Unduh bundel* di workflow, dan pertimbangk
 Syarat mereka (alquran.cloud/terms-and-conditions, diperbarui 14 Juni 2026): rekaman dilisensikan untuk redistribusi gratis non-komersial dan boleh dialirkan serta diunduh untuk penggunaan personal dan edukasi. Rekaman **boleh dibundel ke produk komersial, tetapi hak cipta tetap pada para qari dan mereka dapat meminta konten dihapus**. Jadi izin untuk aplikasi beriklan bersyarat, bukan jaminan. Atribusi sudah ada di layar Unduhan. Hubungi mereka (islamic.network/contact.html) jika ingin kepastian tertulis.
 
 ### Pembaca tafsir
-Memakai suara bawaan Android, bukan suara AI awan. Teks tafsir dibacakan langsung di HP pengguna. **Jangan** membuat dan menghosting berkas audio tafsir sendiri tanpa izin EQuran.id, karena tafsirnya dilindungi hak cipta mereka.
+Memakai suara bawaan Android, bukan suara AI awan. **Android tidak memberi tahu jenis kelamin suara.** Pilihan Wanita/Pria memakai suara yang kamu tandai sendiri lewat *Atur suara* (dengarkan dengan *Coba*, lalu tandai). Sebelum ditandai, dipakai tebakan berdasarkan urutan suara plus penyesuaian nada. Suara dengan jenis kelamin pasti tersedia lewat API awan (mis. Google Cloud TTS), tetapi berbayar dan butuh server. Teks tafsir dibacakan langsung di HP pengguna. **Jangan** membuat dan menghosting berkas audio tafsir sendiri tanpa izin EQuran.id, karena tafsirnya dilindungi hak cipta mereka.
 
 ## Yang belum diverifikasi
 - **Kode belum dikompilasi di lingkungan pembuatnya.** Build pertama di GitHub Actions adalah ujinya.

@@ -133,6 +133,12 @@ class QuranDb(ctx: Context) : SQLiteOpenHelper(ctx, "quran.db", null, 2) {
         } finally { db.endTransaction() }
     }
 
+    fun tafsirChapters(): Set<Int> {
+        val out = HashSet<Int>()
+        readableDatabase.rawQuery("SELECT surat FROM tafsir", null).use { while (it.moveToNext()) out += it.getInt(0) }
+        return out
+    }
+
     fun getMeta(k: String): String? =
         readableDatabase.rawQuery("SELECT v FROM meta WHERE k=?", arrayOf(k)).use { if (it.moveToFirst()) it.getString(0) else null }
 

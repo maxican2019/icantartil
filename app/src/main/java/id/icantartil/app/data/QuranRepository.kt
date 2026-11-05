@@ -106,6 +106,20 @@ class QuranRepository(private val ctx: Context) {
         withContext(Dispatchers.IO) { db.setMeta("synced_at", System.currentTimeMillis().toString()) }
     }
 
+    suspend fun tafsirDownloaded(): Set<Int> = withContext(Dispatchers.IO) { db.tafsirChapters() }
+
+    /** Unduh tafsir semua surat yang belum tersimpan (114 permintaan, dengan jeda ramah ke server). */
+    suspend fun downloadAllTafsir(onProgress: (Int, Int) -> Unit) {
+        val have = tafsirDownloaded()
+        val todo = (1..114).filter { it !in have }
+        for ((i, n) in todo.withIndex()) {
+            val data = getRetry("/tafsir/$n").getJSONObject("data")
+            withContext(Dispatchers.IO) { db.putTafsir(n, data.toString()) }
+            onProgress(i + 1, todo.size)
+            delay(150)
+        }
+    }
+
     /** Tafsir per surat, diambil sekali lalu disimpan. @return nomor ayat -> teks tafsir. */
     suspend fun tafsir(chapter: Int): Map<Int, String> {
         val cached = withContext(Dispatchers.IO) { db.tafsirJson(chapter) }
