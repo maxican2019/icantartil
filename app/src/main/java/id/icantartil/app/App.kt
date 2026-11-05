@@ -1,10 +1,10 @@
-package com.icandomore.icantartil
+package id.icantartil.app
 
 import android.app.Application
-import com.icandomore.icantartil.ads.Ads
-import com.icandomore.icantartil.audio.AudioEngine
-import com.icandomore.icantartil.audio.Narrator
-import com.icandomore.icantartil.data.Prefs
+import id.icantartil.app.ads.Ads
+import id.icantartil.app.audio.AudioEngine
+import id.icantartil.app.audio.Narrator
+import id.icantartil.app.data.Prefs
 
 class App : Application() {
     override fun onCreate() {

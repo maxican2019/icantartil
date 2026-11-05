@@ -11,10 +11,10 @@ fun cfg(prop: String, env: String, default: String): String =
 fun env(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() }
 
 android {
-    namespace = "com.icandomore.icantartil"
+    namespace = "id.icantartil.app"
     compileSdk = 36
     defaultConfig {
-            applicationId = "com.icandomore.icantartil" // PERMANEN setelah dirilis ke Play Store
+        applicationId = "id.icantartil.app" // PERMANEN setelah dirilis ke Play Store
         minSdk = 26
         targetSdk = 36
         // Play mewajibkan versionCode naik di setiap unggahan; workflow rilis mengisinya dari nomor run GitHub.

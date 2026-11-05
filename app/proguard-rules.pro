@@ -2,4 +2,4 @@
 -dontwarn org.conscrypt.**
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
--keep class com.icandomore.icantartil.** { *; }
+-keep class id.icantartil.app.data.** { *; }

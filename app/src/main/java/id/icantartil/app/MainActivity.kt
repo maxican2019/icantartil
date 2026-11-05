@@ -6,8 +6,8 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.icandomore.icantartil.ui.AppRoot
-import com.icandomore.icantartil.ui.IcanTartilTheme
+import id.icantartil.app.ui.AppRoot
+import id.icantartil.app.ui.IcanTartilTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
