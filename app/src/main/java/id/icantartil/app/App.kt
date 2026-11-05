@@ -2,7 +2,7 @@ package com.icandomore.icantartil
 
 import android.app.Application
 import com.icandomore.icantartil.ads.Ads
-import icom.icandomore.icantartil.audio.AudioEngine
+import com.icandomore.icantartil.audio.AudioEngine
 import com.icandomore.icantartil.audio.Narrator
 import com.icandomore.icantartil.data.Prefs
 
