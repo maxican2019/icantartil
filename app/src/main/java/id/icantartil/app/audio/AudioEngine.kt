@@ -1,12 +1,14 @@
 package id.icantartil.app.audio
 
 import android.app.Application
+import android.content.ComponentName
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -19,6 +21,8 @@ import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import id.icantartil.app.data.Ayah
 import id.icantartil.app.data.Loop
 import kotlinx.coroutines.Dispatchers
@@ -39,6 +43,15 @@ data class PlayState(
 object AudioEngine {
     const val LIMIT = 200L * 1024 * 1024
     private class Meta(val ayah: Int, val rep: Int)
+
+    private lateinit var app: Application
+    private var controller: Any? = null
+
+    /** Antrean yang sedang diputar; dibaca UI saat aplikasi dibuka kembali dari notifikasi. */
+    var queue: List<Ayah> = emptyList()
+        private set
+    var lastLoop: Loop = Loop()
+        private set
 
     private lateinit var cache: SimpleCache
     private lateinit var cacheFactory: CacheDataSource.Factory
@@ -61,7 +74,8 @@ object AudioEngine {
     private val _state = MutableStateFlow(PlayState())
     val state: StateFlow<PlayState> = _state.asStateFlow()
 
-    fun init(app: Application) {
+    fun init(a: Application) {
+        app = a
         cache = SimpleCache(File(app.cacheDir, "audio"), LeastRecentlyUsedCacheEvictor(LIMIT), StandaloneDatabaseProvider(app))
         cacheFactory = CacheDataSource.Factory()
             .setCache(cache)
@@ -70,6 +84,7 @@ object AudioEngine {
         player = ExoPlayer.Builder(app)
             .setMediaSourceFactory(DefaultMediaSourceFactory(cacheFactory))
             .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_NETWORK) // CPU dan Wi-Fi tetap aktif saat layar mati
             .build()
         player.setAudioAttributes(
             AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), true
@@ -100,15 +115,16 @@ object AudioEngine {
         )
     }
 
-    fun play(chapterId: Int, list: List<Ayah>, loop: Loop) {
+    fun play(chapterId: Int, list: List<Ayah>, loop: Loop, title: String = "", artist: String = "") {
         if (list.isEmpty()) return
+        queue = list; lastLoop = loop
         chapter = chapterId; from = list.first().number; to = list.last().number
         perAyah = loop.perAyah.coerceAtLeast(1); pauseMs = loop.pauseSec * 1000L
         val pass = ArrayList<Pair<Ayah, Int>>()
         for (a in list) for (r in 1..perAyah) pass += a to r
         val rounds = if (loop.perRange <= 0) 1 else minOf(loop.perRange, 600 / pass.size.coerceAtLeast(1)).coerceAtLeast(1)
         val items = ArrayList<MediaItem>(); val ms = ArrayList<Meta>()
-        repeat(rounds) { for ((a, r) in pass) { items += MediaItem.fromUri(a.audioUrl); ms += Meta(a.number, r) } }
+        repeat(rounds) { for ((a, r) in pass) { items += item(a, title, artist); ms += Meta(a.number, r) } }
         meta = ms
         main.removeCallbacks(resume); waiting = false
         player.stop(); player.clearMediaItems()
@@ -116,6 +132,26 @@ object AudioEngine {
         player.pauseAtEndOfMediaItems = pauseMs > 0
         player.setMediaItems(items); player.prepare(); player.playWhenReady = true
         publish()
+        ensureService()
+    }
+
+    private fun item(a: Ayah, title: String, artist: String): MediaItem = MediaItem.Builder()
+        .setUri(a.audioUrl)
+        .setMediaMetadata(
+            MediaMetadata.Builder()
+                .setTitle(if (title.isBlank()) "Ayat ${a.number}" else "$title · ayat ${a.number}")
+                .setArtist(artist.ifBlank { "IcanTartil" })
+                .build(),
+        )
+        .build()
+
+    /** Menyambungkan ke PlaybackService; Media3 lalu menaikkannya menjadi layanan latar depan saat audio diputar. */
+    private fun ensureService() {
+        if (controller != null) return
+        try {
+            val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
+            controller = MediaController.Builder(app, token).buildAsync()
+        } catch (e: Exception) { /* tanpa layanan: audio tetap diputar selama aplikasi terbuka */ }
     }
 
     fun toggle() {

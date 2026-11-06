@@ -1,5 +1,6 @@
 package id.icantartil.app.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -7,7 +8,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -38,9 +42,14 @@ private fun TafsirMenu(vm: AppVm) {
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxWidth().background(Green).padding(start = 20.dp, top = 22.dp, end = 20.dp, bottom = 16.dp)) {
             Text("Tafsir", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-            Text("Tafsir per surat dan per ayat. Ketuk surat untuk membaca dan mendengarkan.", color = Mist, fontSize = 13.sp)
+            Text("Tafsir per surat dan per ayat, disimpan di perangkat. Singkatan seperti saw dan swt ditulis lengkap.", color = Mist, fontSize = 13.sp)
             Spacer(Modifier.height(12.dp))
-            GoldButton("Unduh semua tafsir · ${vm.tafsirDone.size}/114 tersimpan", Modifier.fillMaxWidth()) { vm.downloadAllTafsir() }
+            val prog = vm.tafsirProgress
+            if (prog != null) {
+                Text("Mengunduh tafsir ${prog.first}/${prog.second}… (boleh ditinggal)", color = LightGold, fontWeight = FontWeight.Bold)
+            } else {
+                GoldButton("Unduh semua tafsir · ${vm.tafsirDone.size}/114 tersimpan", Modifier.fillMaxWidth()) { vm.downloadAllTafsir() }
+            }
         }
         Box(Modifier.fillMaxWidth().height(3.dp).background(Gold))
         LazyColumn(
@@ -59,6 +68,7 @@ private fun TafsirMenu(vm: AppVm) {
 }
 
 /** Pembaca: hanya teks tafsir per ayat. Audio otomatis lanjut ke ayat berikutnya setelah satu ayat selesai. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TafsirReader(vm: AppVm) {
     val ns by Narrator.state.collectAsState()
@@ -94,7 +104,7 @@ private fun TafsirReader(vm: AppVm) {
                 Chip(Narrator.rateLabel(ns.rate), Modifier.weight(1f)) { Narrator.cycleRate() }
                 Chip(if (ns.auto) "Lanjut otomatis" else "Satu ayat", Modifier.weight(1f)) { Narrator.toggleAuto() }
             }
-            Text("Ketuk ayat untuk memutar dari sana", color = Mist, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+            Text("Ketuk kalimat untuk memutar dari kalimat itu", color = Mist, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
             ns.error?.let { Text(it, color = Color(0xFFFF8A80), fontSize = 12.sp) }
         }
         if (items.isEmpty()) {
@@ -104,22 +114,28 @@ private fun TafsirReader(vm: AppVm) {
             itemsIndexed(items, key = { _, it -> it.first }) { i, (n, text) ->
                 val sents = remember(text) { TafsirText.split(text) }
                 val current = i == ns.unit
-                val ann = remember(sents, current, ns.idx) {
-                    if (sents.isEmpty()) AnnotatedString("Tidak ada tafsir untuk ayat ini.")
-                    else buildAnnotatedString {
-                        sents.forEachIndexed { k, s ->
-                            if (current && k == ns.idx) withStyle(SpanStyle(background = Gold, color = DeepGreen)) { append(s) } else append(s)
-                            append(" ")
-                        }
-                    }
-                }
                 Row(
-                    Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(Shape6).background(if (current) Tint else Color.White)
-                        .clickable { vm.playTafsirFrom(n) }.padding(14.dp),
+                    Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(Shape6).background(if (current) Tint else Color.White).padding(14.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     NumBadge(n.toString(), on = current, size = 32.dp)
-                    Text(ann, color = DeepGreen, fontSize = 15.sp, lineHeight = 22.sp, modifier = Modifier.weight(1f))
+                    // Tiap kalimat adalah blok sendiri dengan pemisah; mengetuknya memulai audio dari kalimat itu.
+                    Column(Modifier.weight(1f)) {
+                        if (sents.isEmpty()) Text("Tidak ada tafsir untuk ayat ini.", color = Ink, fontSize = 15.sp)
+                        sents.forEachIndexed { k, s ->
+                            val active = current && k == ns.idx
+                            val bring = remember { BringIntoViewRequester() }
+                            LaunchedEffect(active) { if (active) bring.bringIntoView() }
+                            Text(
+                                s, color = DeepGreen, fontSize = 15.sp, lineHeight = 22.sp,
+                                modifier = Modifier.fillMaxWidth().bringIntoViewRequester(bring).clip(Shape6)
+                                    .background(if (active) Gold else Color.Transparent)
+                                    .clickable { vm.playTafsirSentence(n, k) }
+                                    .padding(horizontal = 6.dp, vertical = 8.dp),
+                            )
+                            if (k < sents.lastIndex) HorizontalDivider(color = Color(0xFFD5DDD8))
+                        }
+                    }
                 }
             }
         }

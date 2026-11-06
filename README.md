@@ -20,6 +20,12 @@ Lihat **`docs/PUBLISH.md`** (langkah lengkap), `docs/store-listing.md`, `docs/da
 3. ID AdMob IcanTartil sudah menjadi nilai bawaan di `app/build.gradle.kts` (ID iklan bukan rahasia). Secret `ADMOB_APP_ID`, `ADMOB_BANNER_ID`, `ADMOB_REWARDED_ID` di GitHub, jika diisi, menimpa nilai itu. **Jangan klik iklan asli sendiri**; daftarkan HP-mu sebagai perangkat uji di konsol AdMob.
 4. Cloudflare Worker dan secret `PROXY_BASE_URL`/`APP_KEY` dari versi sebelumnya **tidak dipakai lagi** dan boleh dihapus.
 
+## Pemutaran di latar belakang
+Audio qari diputar lewat `PlaybackService` (MediaSession + layanan latar depan `mediaPlayback`, notifikasi media, wake lock jaringan). Pembacaan tafsir memakai `NarrationService` (notifikasi dengan tombol Berhenti). Android 13+ meminta izin notifikasi sekali saat pemutaran pertama.
+
+## Alur data tafsir
+API (`/tafsir/{n}`, 114 surat) → simpan data mentah → **normalisasi teks** (`audio/TafsirText.kt`: saw, swt, r.a., a.s., Q.S., HR, dll menjadi bentuk lengkap) → SQLite (`tafsir_ayat`) → UI membaca dari lokal. Data mentah ikut disimpan sehingga aturan normalisasi bisa diperbarui (naikkan `NORM_VERSION`) tanpa mengunduh ulang. Unduhan otomatis hanya di jaringan tidak berbayar; selain itu lewat tombol *Unduh semua tafsir*. Di pembaca, tiap kalimat dipisah dan bisa diketuk untuk memutar dari kalimat itu.
+
 ## Antarmuka
 - **Beranda:** ikon jam di samping kolom cari membuka Riwayat. Mengetuk kotak emas masuk ke layar *Sedang diputar* tanpa menjeda audio; tombol di kotak itu memutar/menjeda.
 - **Rentang:** nomor ayat dipilih dengan tombol −/+, roda angka (geser, lalu menempel ke angka terdekat), atau ketuk angka untuk mengetik manual.
@@ -54,4 +60,4 @@ Memakai suara bawaan Android, bukan suara AI awan. **Android tidak memberi tahu 
 - URL audio berawalan `http://` diubah otomatis ke `https://`.
 
 ## Belum ada
-Pemutaran di latar belakang dengan notifikasi, audio terjemahan (TTS), mode putar ayat lalu tafsir otomatis, font Arab Amiri.
+Audio terjemahan (TTS), mode putar ayat lalu tafsir otomatis, font Arab Amiri.

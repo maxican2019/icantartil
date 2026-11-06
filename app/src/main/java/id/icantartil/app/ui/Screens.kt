@@ -1,8 +1,14 @@
 package id.icantartil.app.ui
 
+import android.Manifest
 import android.app.Activity
+import android.content.pm.PackageManager
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,6 +37,7 @@ import id.icantartil.app.R
 import id.icantartil.app.audio.AudioEngine
 import id.icantartil.app.audio.Narrator
 import id.icantartil.app.audio.PlayState
+import id.icantartil.app.data.Prefs
 import id.icantartil.app.data.Chapter
 import id.icantartil.app.data.Reciters
 import kotlinx.coroutines.delay
@@ -44,6 +51,16 @@ import java.util.Locale
 fun AppRoot(vm: AppVm = viewModel()) {
     val st by AudioEngine.state.collectAsState()
     val ctx = LocalContext.current
+    // Android 13+: izin notifikasi agar kontrol media tampil saat audio berjalan di latar belakang (diminta sekali).
+    val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    LaunchedEffect(st.active) {
+        if (st.active && Build.VERSION.SDK_INT >= 33 && !Prefs.notifAsked &&
+            ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            Prefs.notifAsked = true
+            notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
     BackHandler(vm.screen != Screen.Home) {
         if (vm.screen == Screen.Tafsir && vm.tafsirChapter != 0) vm.leaveTafsirReader() else vm.screen = Screen.Home
     }

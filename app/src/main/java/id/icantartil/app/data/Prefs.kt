@@ -28,6 +28,10 @@ object Prefs {
     var tafsirAuto: Boolean
         get() = sp.getBoolean("t_auto", true)
         set(v) { sp.edit().putBoolean("t_auto", v).apply() }
+    /** Izin notifikasi (Android 13+) hanya diminta sekali, saat pemutaran pertama. */
+    var notifAsked: Boolean
+        get() = sp.getBoolean("notif_asked", false)
+        set(v) { sp.edit().putBoolean("notif_asked", v).apply() }
     var lastSyncAt: Long
         get() = sp.getLong("last_sync", 0L)
         set(v) { sp.edit().putLong("last_sync", v).apply() }

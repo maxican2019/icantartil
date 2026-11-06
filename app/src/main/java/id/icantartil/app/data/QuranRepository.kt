@@ -1,6 +1,7 @@
 package id.icantartil.app.data
 
 import android.content.Context
+import id.icantartil.app.audio.TafsirText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -106,36 +107,56 @@ class QuranRepository(private val ctx: Context) {
         withContext(Dispatchers.IO) { db.setMeta("synced_at", System.currentTimeMillis().toString()) }
     }
 
+    // ---- Tafsir: API -> simpan data mentah -> normalisasi teks -> SQLite -> UI membaca dari lokal ----
     suspend fun tafsirDownloaded(): Set<Int> = withContext(Dispatchers.IO) { db.tafsirChapters() }
 
-    /** Unduh tafsir semua surat yang belum tersimpan (114 permintaan, dengan jeda ramah ke server). */
+    private fun rowsFrom(data: JSONObject): List<Pair<Int, String>> {
+        val a = data.optJSONArray("tafsir") ?: return emptyList()
+        val out = ArrayList<Pair<Int, String>>()
+        for (i in 0 until a.length()) {
+            val o = a.getJSONObject(i)
+            out += o.optInt("ayat", i + 1) to TafsirText.normalize(o.str("teks"))
+        }
+        return out.sortedBy { it.first }
+    }
+
+    /** Ambil satu surat dari server bila data mentahnya belum ada, normalkan, lalu simpan per ayat. */
+    private suspend fun storeTafsir(chapter: Int): List<Pair<Int, String>> {
+        val rawText = withContext(Dispatchers.IO) { db.tafsirJson(chapter) }
+        val data = if (rawText != null) JSONObject(rawText) else {
+            val d = getRetry("/tafsir/$chapter").getJSONObject("data")
+            withContext(Dispatchers.IO) { db.putTafsir(chapter, d.toString()) }
+            d
+        }
+        val rows = rowsFrom(data)
+        withContext(Dispatchers.IO) { db.putTafsirRows(chapter, rows) }
+        return rows
+    }
+
+    /** Tafsir satu surat dari database lokal; jika belum ada, diunduh dan dinormalkan dulu. */
+    suspend fun tafsir(chapter: Int): List<Pair<Int, String>> {
+        val local = withContext(Dispatchers.IO) { db.tafsirRows(chapter) }
+        return if (local.isNotEmpty()) local else storeTafsir(chapter)
+    }
+
+    /** Unduh tafsir semua surat (114 permintaan, dengan jeda ramah ke server) yang belum tersimpan. */
     suspend fun downloadAllTafsir(onProgress: (Int, Int) -> Unit) {
         val have = tafsirDownloaded()
         val todo = (1..114).filter { it !in have }
         for ((i, n) in todo.withIndex()) {
-            val data = getRetry("/tafsir/$n").getJSONObject("data")
-            withContext(Dispatchers.IO) { db.putTafsir(n, data.toString()) }
+            storeTafsir(n)
             onProgress(i + 1, todo.size)
             delay(150)
         }
     }
 
-    /** Tafsir per surat, diambil sekali lalu disimpan. @return nomor ayat -> teks tafsir. */
-    suspend fun tafsir(chapter: Int): Map<Int, String> {
-        val cached = withContext(Dispatchers.IO) { db.tafsirJson(chapter) }
-        if (cached != null) return parseTafsir(JSONObject(cached))
-        val data = getRetry("/tafsir/$chapter").getJSONObject("data")
-        withContext(Dispatchers.IO) { db.putTafsir(chapter, data.toString()) }
-        return parseTafsir(data)
-    }
-
-    private fun parseTafsir(d: JSONObject): Map<Int, String> {
-        val a = d.optJSONArray("tafsir") ?: return emptyMap()
-        val m = LinkedHashMap<Int, String>()
-        for (i in 0 until a.length()) {
-            val o = a.getJSONObject(i)
-            m[o.optInt("ayat", i + 1)] = o.str("teks")
+    /** Jika aturan normalisasi berubah (NORM_VERSION naik), bangun ulang dari data mentah tanpa internet. */
+    suspend fun renormalizeIfNeeded() = withContext(Dispatchers.IO) {
+        if (db.getMeta("tafsir_norm_v") == TafsirText.NORM_VERSION.toString()) return@withContext
+        for (n in db.rawTafsirChapters()) {
+            val raw = db.tafsirJson(n) ?: continue
+            db.putTafsirRows(n, rowsFrom(JSONObject(raw)))
         }
-        return m
+        db.setMeta("tafsir_norm_v", TafsirText.NORM_VERSION.toString())
     }
 }

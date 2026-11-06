@@ -1,11 +1,13 @@
 package id.icantartil.app.audio
 
 import android.app.Application
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
+import androidx.core.content.ContextCompat
 import id.icantartil.app.data.Prefs
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +37,7 @@ object Narrator {
     private lateinit var app: Application
     private var tts: TextToSpeech? = null
     private var ready = false
+    private var serviceOn = false
     private var units: List<List<String>> = emptyList()
     private val rates = listOf(0.8f, 1f, 1.25f)
     private val main = Handler(Looper.getMainLooper())
@@ -63,7 +66,8 @@ object Narrator {
             if (units.getOrNull(u)?.lastIndex != s) return
             main.post {
                 val st = _state.value
-                if (st.auto && u + 1 < units.size) speakUnit(u + 1, 0) else _state.value = st.copy(speaking = false, idx = -1)
+                if (st.auto && u + 1 < units.size) speakUnit(u + 1, 0)
+                else { _state.value = st.copy(speaking = false, idx = -1); serviceDown() }
             }
         }
         @Deprecated("Deprecated in Java")
@@ -118,19 +122,36 @@ object Narrator {
         }
         AudioEngine.player.pause() // jeda lantunan agar tidak bertabrakan
         t.stop(); applyVoice(t); t.setSpeechRate(_state.value.rate)
-        for (k in from until sents.size) t.speak(sents[k], TextToSpeech.QUEUE_ADD, null, "u${u}s$k")
+        for (k in from until sents.size) {
+            val spoken = TafsirText.speakable(sents[k]) // aksara Arab tidak dibacakan oleh suara Indonesia
+            if (spoken.isBlank()) t.playSilentUtterance(150, TextToSpeech.QUEUE_ADD, "u${u}s$k")
+            else t.speak(spoken, TextToSpeech.QUEUE_ADD, null, "u${u}s$k")
+        }
+        serviceUp()
         _state.value = _state.value.copy(speaking = true, unit = u, idx = from, error = null)
+    }
+
+    private fun serviceUp() {
+        if (serviceOn) return
+        serviceOn = true
+        try { ContextCompat.startForegroundService(app, Intent(app, NarrationService::class.java)) } catch (e: Exception) { serviceOn = false }
+    }
+
+    private fun serviceDown() {
+        if (!serviceOn) return
+        serviceOn = false
+        app.stopService(Intent(app, NarrationService::class.java))
     }
 
     /** Muat daftar ayat (tiap ayat = daftar kalimat) yang akan dibacakan. */
     fun load(list: List<List<String>>) { stop(); units = list }
 
     fun play(unit: Int, from: Int = 0) { ensure { ok -> if (ok) speakUnit(unit, from) } }
-    fun pause() { tts?.stop(); _state.value = _state.value.copy(speaking = false) }
+    fun pause() { tts?.stop(); _state.value = _state.value.copy(speaking = false); serviceDown() }
     fun resume() { val s = _state.value; play(s.unit.coerceAtLeast(0), s.idx.coerceAtLeast(0)) }
     fun next() { val u = _state.value.unit + 1; if (u in units.indices) play(u) }
     fun prev() { val u = _state.value.unit - 1; if (u in units.indices) play(u) }
-    fun stop() { tts?.stop(); _state.value = _state.value.copy(speaking = false, unit = -1, idx = -1) }
+    fun stop() { tts?.stop(); _state.value = _state.value.copy(speaking = false, unit = -1, idx = -1); serviceDown() }
 
     fun toggleAuto() { val a = !_state.value.auto; Prefs.tafsirAuto = a; _state.value = _state.value.copy(auto = a) }
 

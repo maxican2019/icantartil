@@ -2,6 +2,8 @@ package id.icantartil.app.ui
 
 import android.app.Activity
 import android.app.Application
+import android.content.Context
+import android.net.ConnectivityManager
 import androidx.compose.runtime.*
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -29,9 +31,9 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     var chapterId by mutableIntStateOf(1); private set
     var from by mutableIntStateOf(1); private set
     var to by mutableIntStateOf(5); private set
-    var loop by mutableStateOf(Loop()); private set
+    var loop by mutableStateOf(AudioEngine.lastLoop); private set
     var ayahs by mutableStateOf<List<Ayah>>(emptyList()); private set
-    var queue by mutableStateOf<List<Ayah>>(emptyList()); private set
+    var queue by mutableStateOf(AudioEngine.queue); private set
     var history by mutableStateOf(Prefs.history()); private set
     var adFreeUntil by mutableLongStateOf(Prefs.adFreeUntil); private set
     var now by mutableLongStateOf(System.currentTimeMillis()); private set
@@ -43,6 +45,7 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     var tafsirItems by mutableStateOf<List<Pair<Int, String>>>(emptyList()); private set
     var tafsirDone by mutableStateOf<Set<Int>>(emptySet()); private set
     var tafsirFocus by mutableIntStateOf(1); private set
+    var tafsirProgress by mutableStateOf<Pair<Int, Int>?>(null); private set
     var reciter by mutableStateOf(Prefs.reciter); private set
     var showReciters by mutableStateOf(false)
 
@@ -51,6 +54,8 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     fun name(id: Int) = chapter(id)?.name ?: "Surat $id"
 
     init {
+        // Dibuka kembali dari notifikasi saat audio masih berjalan di latar belakang: pulihkan keadaannya.
+        AudioEngine.state.value.let { st -> if (st.active) { chapterId = st.chapter; from = st.from; to = st.to } }
         viewModelScope.launch { boot() }
         viewModelScope.launch { while (true) { delay(20_000); now = System.currentTimeMillis() } }
     }
@@ -61,9 +66,12 @@ class AppVm(app: Application) : AndroidViewModel(app) {
             repo.ensureLoaded { d, t -> progress = d to t }
             chapters = repo.chapters()
             syncedAt = repo.syncedAt()
+            repo.renormalizeIfNeeded()
+            tafsirDone = repo.tafsirDownloaded()
         } catch (e: CancellationException) { throw e
         } catch (e: Exception) { error = describe(e) }
         progress = null; loading = false
+        autoTafsir()
     }
 
     fun retry() { viewModelScope.launch { boot() } }
@@ -113,7 +121,7 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         } catch (e: Exception) { /* lanjut: putar dari cache atau streaming */ }
         busy = null; cacheTick++
         Narrator.stop()
-        AudioEngine.play(chapterId, playable, loop)
+        AudioEngine.play(chapterId, playable, loop, name(chapterId), Reciters.byId(reciter).name)
         Prefs.addHistory(HistoryItem(chapterId, playable.first().number, playable.last().number, loop, System.currentTimeMillis()))
         history = Prefs.history()
         screen = Screen.Player
@@ -197,8 +205,7 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             busy = "Memuat tafsir…"
             guarded("Tafsir belum bisa dimuat. Periksa koneksi.") {
-                val m = repo.tafsir(c.id)
-                tafsirItems = m.entries.sortedBy { it.key }.map { it.key to it.value }
+                tafsirItems = repo.tafsir(c.id)
                 Narrator.load(tafsirItems.map { TafsirText.split(it.second) })
                 tafsirFocus = ayah; tafsirChapter = c.id; screen = Screen.Tafsir
                 tafsirDone = repo.tafsirDownloaded()
@@ -218,15 +225,38 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         Narrator.play(i)
     }
 
-    fun downloadAllTafsir() {
+    private fun isMetered(): Boolean = try {
+        (getApplication<Application>().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager).isActiveNetworkMetered
+    } catch (e: Exception) { true }
+
+    private fun runTafsirDownload(silent: Boolean) {
+        if (tafsirProgress != null) return
         viewModelScope.launch {
-            busy = "Mengunduh tafsir…"
-            guarded("Gagal mengunduh tafsir. Periksa koneksi.") {
-                repo.downloadAllTafsir { d, t -> busy = "Mengunduh tafsir $d/$t" }
-                tafsirDone = repo.tafsirDownloaded(); toast = "Semua tafsir tersimpan"
-            }
-            busy = null
+            tafsirProgress = 0 to 114
+            try {
+                repo.downloadAllTafsir { d, t -> tafsirProgress = d to t }
+                if (!silent) toast = "Semua tafsir tersimpan"
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { if (!silent) toast = "Gagal mengunduh tafsir. Periksa koneksi." }
+            tafsirProgress = null
+            tafsirDone = repo.tafsirDownloaded()
         }
+    }
+
+    /** Tombol "Unduh semua tafsir": berjalan di latar dengan progres di menu Tafsir. */
+    fun downloadAllTafsir() = runTafsirDownload(silent = false)
+
+    /** Unduh otomatis hanya di jaringan tidak berbayar (Wi-Fi); di data seluler pengguna menekan tombol sendiri. */
+    private fun autoTafsir() {
+        viewModelScope.launch { if (tafsirDone.size < 114 && !isMetered()) runTafsirDownload(silent = true) }
+    }
+
+    /** Putar tafsir mulai dari kalimat tertentu (bukan dari awal ayat). */
+    fun playTafsirSentence(ayah: Int, sentence: Int) {
+        val i = tafsirItems.indexOfFirst { it.first == ayah }
+        if (i < 0) return
+        tafsirFocus = ayah
+        Narrator.play(i, sentence)
     }
 
     /** Ketuk kotak "Sedang diputar": masuk ke layar pemutar TANPA menjeda audio; jika belum ada, putar riwayat terakhir. */

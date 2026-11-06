@@ -8,18 +8,22 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Database lokal (SQLite): teks 114 surat, audio per ayat, dan cache tafsir. */
-class QuranDb(ctx: Context) : SQLiteOpenHelper(ctx, "quran.db", null, 2) {
+class QuranDb(ctx: Context) : SQLiteOpenHelper(ctx, "quran.db", null, 3) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE surat(nomor INTEGER PRIMARY KEY, nama TEXT, latin TEXT, arti TEXT, jumlah INTEGER)")
         db.execSQL("CREATE TABLE ayat(surat INTEGER, nomor INTEGER, arab TEXT, latin TEXT, indo TEXT, audio TEXT, PRIMARY KEY(surat, nomor))")
         db.execSQL("CREATE TABLE tafsir(surat INTEGER PRIMARY KEY, json TEXT, at INTEGER)")
         db.execSQL("CREATE TABLE meta(k TEXT PRIMARY KEY, v TEXT)")
         db.execSQL("CREATE TABLE audio_url(reciter TEXT, surat INTEGER, nomor INTEGER, url TEXT, PRIMARY KEY(reciter, surat, nomor))")
+        db.execSQL("CREATE TABLE tafsir_ayat(surat INTEGER, ayat INTEGER, teks TEXT, PRIMARY KEY(surat, ayat))")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
             db.execSQL("CREATE TABLE IF NOT EXISTS audio_url(reciter TEXT, surat INTEGER, nomor INTEGER, url TEXT, PRIMARY KEY(reciter, surat, nomor))")
+        }
+        if (oldVersion < 3) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS tafsir_ayat(surat INTEGER, ayat INTEGER, teks TEXT, PRIMARY KEY(surat, ayat))")
         }
     }
 
@@ -133,10 +137,41 @@ class QuranDb(ctx: Context) : SQLiteOpenHelper(ctx, "quran.db", null, 2) {
         } finally { db.endTransaction() }
     }
 
+    /** Surat yang tafsirnya sudah ternormalisasi dan tersimpan (dibaca UI dari sini). */
     fun tafsirChapters(): Set<Int> {
+        val out = HashSet<Int>()
+        readableDatabase.rawQuery("SELECT DISTINCT surat FROM tafsir_ayat", null).use { while (it.moveToNext()) out += it.getInt(0) }
+        return out
+    }
+
+    /** Surat yang data mentah (JSON dari API)-nya tersimpan; sumber untuk normalisasi ulang tanpa internet. */
+    fun rawTafsirChapters(): Set<Int> {
         val out = HashSet<Int>()
         readableDatabase.rawQuery("SELECT surat FROM tafsir", null).use { while (it.moveToNext()) out += it.getInt(0) }
         return out
+    }
+
+    fun tafsirRows(surat: Int): List<Pair<Int, String>> {
+        val out = ArrayList<Pair<Int, String>>()
+        readableDatabase.rawQuery("SELECT ayat,teks FROM tafsir_ayat WHERE surat=? ORDER BY ayat", arrayOf(surat.toString())).use { c ->
+            while (c.moveToNext()) out += c.getInt(0) to (c.getString(1) ?: "")
+        }
+        return out
+    }
+
+    fun putTafsirRows(surat: Int, rows: List<Pair<Int, String>>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.delete("tafsir_ayat", "surat=?", arrayOf(surat.toString()))
+            val st = db.compileStatement("INSERT OR REPLACE INTO tafsir_ayat(surat,ayat,teks) VALUES(?,?,?)")
+            for ((n, t) in rows) {
+                st.clearBindings()
+                st.bindLong(1, surat.toLong()); st.bindLong(2, n.toLong()); st.bindString(3, t)
+                st.executeInsert()
+            }
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
     }
 
     fun getMeta(k: String): String? =

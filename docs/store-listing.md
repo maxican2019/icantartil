@@ -15,6 +15,8 @@ FITUR UTAMA
 • Banyak qari: pilih dari puluhan pilihan qari untuk audio per ayat.
 • Terjemahan Indonesia di bawah setiap ayat.
 • Tafsir per surat dan per ayat, lengkap dengan pembaca suara (wanita atau pria) yang otomatis lanjut ke ayat berikutnya.
+• Tafsir bersuara: ketuk kalimat mana pun untuk memutar dari kalimat itu; singkatan seperti saw dan swt dibacakan lengkap.
+• Berjalan di latar belakang: audio tetap diputar saat layar mati atau aplikasi ditutup, dengan kontrol di notifikasi.
 • Riwayat: putar ulang rentang yang pernah Anda murojaah dengan satu ketukan.
 • Hemat kuota: teks tersimpan di perangkat dan audio disimpan di cache, sehingga rentang yang sudah diputar bisa didengar lagi tanpa mengunduh ulang.
 
