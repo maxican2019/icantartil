@@ -39,6 +39,11 @@ jobs:
           ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
           ADMOB_BANNER_ID: ${{ secrets.ADMOB_BANNER_ID }}
           ADMOB_REWARDED_ID: ${{ secrets.ADMOB_REWARDED_ID }}
+      - name: Pastikan R8 aktif (berkas mapping harus ada)
+        run: |
+          ls -l app/build/outputs/mapping/release/mapping.txt
+          test -s app/build/outputs/mapping/release/mapping.txt
+        continue-on-error: true
       - name: Periksa kesiapan 16 KB page size
         run: python3 tools/check_16kb.py app/build/outputs/apk/release/*.apk
         continue-on-error: true
@@ -48,3 +53,4 @@ jobs:
           path: |
             app/build/outputs/bundle/release/*.aab
             app/build/outputs/apk/release/*.apk
+            app/build/outputs/mapping/release/mapping.txt
