@@ -38,8 +38,10 @@ android {
     }
     buildTypes {
         release {
-            // Minify/R8 dimatikan secara bawaan karena belum teruji. Nyalakan dengan -PminifyRelease=true setelah diuji.
-            val minify = (findProperty("minifyRelease") as String?) == "true"
+            // R8 (perkecil, optimalkan, kaburkan kode) AKTIF secara bawaan: Google Play mewajibkan minimal 25% pada
+            // ketiganya untuk bundle dengan DEX di atas 10 MB (berlaku penuh Februari 2027). Matikan sementara hanya
+            // untuk mencari penyebab crash: -PminifyRelease=false. UJI APK rilis di HP sebelum mengunggah AAB.
+            val minify = (findProperty("minifyRelease") as String?) != "false"
             isMinifyEnabled = minify
             isShrinkResources = minify
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

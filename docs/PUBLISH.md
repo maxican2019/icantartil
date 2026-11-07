@@ -71,6 +71,14 @@ Isi semua bagian di *Policy → App content* sesuai `docs/data-safety.md` (Data 
 ## 6b. Deklarasi layanan latar depan (wajib karena ada pemutaran di latar belakang)
 Di Play Console: *Policy → App content → Foreground service permissions*. Pilih tipe **Media playback** dan jelaskan: "Memutar audio murottal Al-Qur'an dan membacakan tafsir (suara sintetis) saat layar mati atau aplikasi di latar belakang, dengan notifikasi media dan kontrol putar/jeda." Google dapat meminta **video singkat** yang menunjukkan fitur itu; rekam layar HP: putar audio, tekan Home, tunjukkan notifikasi dan kontrolnya.
 
+## 6c. R8 / optimasi kode (peringatan "DEX code optimization")
+Google Play mewajibkan minimal **25% obfuscation, optimization, dan shrinking** untuk bundle dengan DEX di atas 10 MB (berlaku penuh Februari 2027). Build rilis sekarang menyalakan R8 secara bawaan. **Wajib diuji sebelum mengunggah**, karena R8 bisa merusak fitur yang tidak terlihat saat kompilasi:
+1. Jalankan workflow *Release AAB*, unduh artifact, dan **pasang APK rilis** di HP.
+2. Uji: daftar surat muncul, putar rentang, qari lain, loop, jeda, roda angka, riwayat, tafsir (ketuk kalimat), suara wanita/pria, iklan banner dan rewarded, serta audio saat layar mati dan aplikasi digeser dari daftar terbaru.
+3. Jika ada yang rusak atau aplikasi crash, kirim pesan crash (Logcat) ke pengembang. Untuk sementara bisa bangun tanpa R8 dengan `-PminifyRelease=false`, tetapi peringatan Play akan kembali.
+4. `mapping.txt` otomatis ikut di dalam AAB (dan juga di artifact) sehingga jejak crash di Play Console tetap terbaca.
+5. Setelah AAB baru diunggah dan diproses, persentasenya terlihat di *Test and release → App bundle explorer* dan di Android vitals.
+
 ## 7. Closed test lalu produksi
 *Testing → Closed testing → Create track*: unggah AAB, tambahkan 12+ tester (email Google), minta mereka opt-in dan benar-benar memakai aplikasi selama 14 hari berturut-turut. Setelah itu ajukan *production access*, lalu buat rilis produksi. Cek **Pre-launch report** untuk crash.
 
