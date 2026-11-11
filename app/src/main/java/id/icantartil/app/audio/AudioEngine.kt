@@ -115,7 +115,11 @@ object AudioEngine {
         )
     }
 
-    fun play(chapterId: Int, list: List<Ayah>, loop: Loop, title: String = "", artist: String = "") {
+    /** startAyah >= 0: mulai dari ayat itu (dipakai saat ganti qari); autoPlay = false: siapkan dalam keadaan jeda. */
+    fun play(
+        chapterId: Int, list: List<Ayah>, loop: Loop, title: String = "", artist: String = "",
+        startAyah: Int = -1, autoPlay: Boolean = true,
+    ) {
         if (list.isEmpty()) return
         queue = list; lastLoop = loop
         chapter = chapterId; from = list.first().number; to = list.last().number
@@ -130,7 +134,8 @@ object AudioEngine {
         player.stop(); player.clearMediaItems()
         player.repeatMode = if (loop.perRange <= 0) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
         player.pauseAtEndOfMediaItems = pauseMs > 0
-        player.setMediaItems(items); player.prepare(); player.playWhenReady = true
+        val startIndex = if (startAyah >= 0) ms.indexOfFirst { it.ayah == startAyah && it.rep == 1 }.coerceAtLeast(0) else 0
+        player.setMediaItems(items, startIndex, 0L); player.prepare(); player.playWhenReady = autoPlay
         publish()
         ensureService()
     }

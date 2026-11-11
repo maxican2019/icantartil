@@ -40,7 +40,7 @@ class QuranDb(ctx: Context) : SQLiteOpenHelper(ctx, "quran.db", null, 3) {
     fun chapters(): List<Chapter> {
         val out = ArrayList<Chapter>()
         readableDatabase.rawQuery("SELECT nomor,nama,latin,arti,jumlah FROM surat ORDER BY nomor", null).use { c ->
-            while (c.moveToNext()) out += Chapter(c.getInt(0), c.getString(2) ?: "", c.getString(1) ?: "", c.getInt(4), c.getString(3) ?: "")
+            while (c.moveToNext()) out += Chapter(c.getInt(0), c.getString(2) ?: "", SuratNames.arabic(c.getInt(0)) ?: (c.getString(1) ?: ""), c.getInt(4), c.getString(3) ?: "")
         }
         return out
     }

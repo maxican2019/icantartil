@@ -30,7 +30,7 @@ API (`/tafsir/{n}`, 114 surat) → simpan data mentah → **normalisasi teks** (
 - **Beranda:** ikon jam di samping kolom cari membuka Riwayat. Mengetuk kotak emas masuk ke layar *Sedang diputar* tanpa menjeda audio; tombol di kotak itu memutar/menjeda.
 - **Rentang:** nomor ayat dipilih dengan tombol −/+, roda angka (geser, lalu menempel ke angka terdekat), atau ketuk angka untuk mengetik manual.
 - **Riwayat:** tombol *Hapus semua* meminta konfirmasi lebih dulu.
-- **Qari:** dipilih dari layar Rentang atau Unduhan.
+- **Qari:** dipilih dari layar Rentang, Riwayat, Unduhan, atau **Pemutar**. Dari Pemutar, qari berganti langsung: rentang dan pengaturan loop tetap, lanjut dari ayat yang sedang diputar. Dari layar lain, pilihan berlaku untuk pemutaran berikutnya.
 
 ## Iklan
 - Banner hanya di Beranda, Riwayat, dan Unduhan. Tidak pernah di Pemutar.
@@ -52,6 +52,9 @@ Syarat mereka (alquran.cloud/terms-and-conditions, diperbarui 14 Juni 2026): rek
 
 ### Pembaca tafsir
 Memakai suara bawaan Android, bukan suara AI awan. **Android tidak memberi tahu jenis kelamin suara.** Pilihan Wanita/Pria memakai suara yang kamu tandai sendiri lewat *Atur suara* (dengarkan dengan *Coba*, lalu tandai). Sebelum ditandai, dipakai tebakan berdasarkan urutan suara plus penyesuaian nada. Suara dengan jenis kelamin pasti tersedia lewat API awan (mis. Google Cloud TTS), tetapi berbayar dan butuh server. Teks tafsir dibacakan langsung di HP pengguna. **Jangan** membuat dan menghosting berkas audio tafsir sendiri tanpa izin EQuran.id, karena tafsirnya dilindungi hak cipta mereka.
+
+## Nama Arab surat
+Bidang `nama` dari API menulis sebagian nama tanpa hamza (mis. الاخلاص). Aplikasi memakai tabel sendiri (`data/SuratNames.kt`) dengan ejaan baku (الإخلاص), diterapkan saat membaca sehingga data lama ikut terkoreksi.
 
 ## Yang belum diverifikasi
 - **Kode belum dikompilasi di lingkungan pembuatnya.** Build pertama di GitHub Actions adalah ujinya.

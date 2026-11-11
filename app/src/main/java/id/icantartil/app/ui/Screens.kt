@@ -298,6 +298,7 @@ fun PlayerScreen(vm: AppVm, st: PlayState) {
                         Spacer(Modifier.width(20.dp))
                         Box(Modifier.size(52.dp).clickable { AudioEngine.skipAyah(1) }.semantics { contentDescription = "Ayat berikutnya" }, contentAlignment = Alignment.Center) { SkipGlyph(LightGold, true) }
                     }
+                    ReciterRow(vm) // ganti qari langsung saat memutar
                     LoopChips(vm) { vm.restart() }
                     Spacer(Modifier.height(10.dp))
                     OutlineButton("Tafsir ayat ${st.ayah}", Modifier.fillMaxWidth()) { vm.openTafsirAt(st.chapter, st.ayah) }
@@ -330,6 +331,7 @@ fun HistoryScreen(vm: AppVm, st: PlayState) {
             }
             OutlineButton("Hapus semua") { if (vm.history.isNotEmpty()) confirm = true }
         }
+        Column(Modifier.padding(start = 20.dp, top = 12.dp, end = 20.dp)) { ReciterRow(vm) } // qari untuk memutar ulang riwayat
         if (vm.history.isEmpty()) Text("Belum ada rentang yang diputar.", color = Mist, modifier = Modifier.padding(20.dp))
         LazyColumn(Modifier.weight(1f).padding(horizontal = 20.dp, vertical = 16.dp)) {
             groups.forEach { (day, list) ->

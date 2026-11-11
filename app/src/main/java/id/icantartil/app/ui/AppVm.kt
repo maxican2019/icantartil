@@ -111,20 +111,51 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     fun cyclePause() { loop = loop.copy(pauseSec = nextOf(pauseOpts, loop.pauseSec)) }
 
     // ---- Pemutaran ----
-    private suspend fun start(list: List<Ayah>) {
+    /** @return true jika pemutaran dimulai. startAyah >= 0: mulai dari ayat itu; record = false: jangan catat ke riwayat/pindah layar. */
+    private suspend fun start(
+        list: List<Ayah>, startAyah: Int = -1, autoPlay: Boolean = true, prefetch: Boolean = true, record: Boolean = true,
+    ): Boolean {
         val playable = list.filter { it.audioUrl.isNotBlank() }
-        if (playable.isEmpty()) { toast = "Audio ayat tidak tersedia"; return }
+        if (playable.isEmpty()) { toast = "Audio ayat tidak tersedia"; return false }
+        if (prefetch) {
+            try {
+                AudioEngine.prefetch(playable.map { it.audioUrl }) { busy = "Mengunduh audio $it/${playable.size}" }
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { /* lanjut: putar dari cache atau streaming */ }
+        }
         queue = playable
-        try {
-            AudioEngine.prefetch(playable.map { it.audioUrl }) { busy = "Mengunduh audio $it/${playable.size}" }
-        } catch (e: CancellationException) { throw e
-        } catch (e: Exception) { /* lanjut: putar dari cache atau streaming */ }
         busy = null; cacheTick++
         Narrator.stop()
-        AudioEngine.play(chapterId, playable, loop, name(chapterId), Reciters.byId(reciter).name)
-        Prefs.addHistory(HistoryItem(chapterId, playable.first().number, playable.last().number, loop, System.currentTimeMillis()))
-        history = Prefs.history()
-        screen = Screen.Player
+        AudioEngine.play(chapterId, playable, loop, name(chapterId), Reciters.byId(reciter).name, startAyah, autoPlay)
+        if (record) {
+            Prefs.addHistory(HistoryItem(chapterId, playable.first().number, playable.last().number, loop, System.currentTimeMillis()))
+            history = Prefs.history()
+            screen = Screen.Player
+        }
+        return true
+    }
+
+    /**
+     * Ganti qari saat audio sedang berjalan: rentang ayat dan pengaturan loop tetap, pemutaran lanjut dari ayat yang
+     * sedang dilantunkan (tetap jeda jika sedang jeda). Tidak perlu memilih ulang surat atau ayat.
+     */
+    private fun switchReciterLive(id: String) {
+        val st = AudioEngine.state.value
+        val prev = reciter
+        Prefs.reciter = id; reciter = id; showReciters = false
+        viewModelScope.launch {
+            busy = "Mengganti qari…"
+            try {
+                chapterId = st.chapter; from = st.from; to = st.to
+                val ok = start(repo.ayahs(st.chapter, st.from, st.to), startAyah = st.ayah, autoPlay = st.playing, prefetch = false, record = false)
+                if (!ok) { Prefs.reciter = prev; reciter = prev }
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                Prefs.reciter = prev; reciter = prev
+                toast = "Gagal memuat audio qari. Periksa koneksi."
+            }
+            busy = null
+        }
     }
 
     fun playRange() {
@@ -168,6 +199,9 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     }
 
     fun chooseReciter(id: String) {
+        if (id == reciter) { showReciters = false; return }
+        // Dipilih dari layar Pemutar: berlaku langsung pada audio yang sedang berjalan.
+        if (screen == Screen.Player && AudioEngine.state.value.active) { switchReciterLive(id); return }
         Prefs.reciter = id; reciter = id; showReciters = false
         val c = chapter(chapterId)
         if (c != null && screen == Screen.Range) {
