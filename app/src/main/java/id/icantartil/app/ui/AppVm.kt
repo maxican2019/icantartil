@@ -111,17 +111,23 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     fun cyclePause() { loop = loop.copy(pauseSec = nextOf(pauseOpts, loop.pauseSec)) }
 
     // ---- Pemutaran ----
-    /** @return true jika pemutaran dimulai. startAyah >= 0: mulai dari ayat itu; record = false: jangan catat ke riwayat/pindah layar. */
+    /**
+     * Unduh dulu semua ayat dalam rentang ke cache, baru diputar dari cache (menjaga server audio tidak terbebani).
+     * @return true jika pemutaran dimulai. startAyah >= 0: mulai dari ayat itu; record = false: jangan catat ke
+     * riwayat/pindah layar; strict = true: batalkan jika unduhan gagal (tidak jatuh ke streaming).
+     */
     private suspend fun start(
-        list: List<Ayah>, startAyah: Int = -1, autoPlay: Boolean = true, prefetch: Boolean = true, record: Boolean = true,
+        list: List<Ayah>, startAyah: Int = -1, autoPlay: Boolean = true, record: Boolean = true,
+        strict: Boolean = false, label: String = "Mengunduh audio",
     ): Boolean {
         val playable = list.filter { it.audioUrl.isNotBlank() }
         if (playable.isEmpty()) { toast = "Audio ayat tidak tersedia"; return false }
-        if (prefetch) {
-            try {
-                AudioEngine.prefetch(playable.map { it.audioUrl }) { busy = "Mengunduh audio $it/${playable.size}" }
-            } catch (e: CancellationException) { throw e
-            } catch (e: Exception) { /* lanjut: putar dari cache atau streaming */ }
+        try {
+            AudioEngine.prefetch(playable.map { it.audioUrl }) { busy = "$label $it/${playable.size}" }
+        } catch (e: CancellationException) { throw e
+        } catch (e: Exception) {
+            if (strict) { busy = null; return false } // ganti qari: jangan streaming, kembali ke qari sebelumnya
+            /* putar biasa: lanjut dengan yang sudah ada di cache */
         }
         queue = playable
         busy = null; cacheTick++
@@ -136,8 +142,9 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Ganti qari saat audio sedang berjalan: rentang ayat dan pengaturan loop tetap, pemutaran lanjut dari ayat yang
-     * sedang dilantunkan (tetap jeda jika sedang jeda). Tidak perlu memilih ulang surat atau ayat.
+     * Ganti qari saat audio sedang berjalan: rentang ayat dan pengaturan loop tetap. Audio qari baru DIUNDUH dulu
+     * (audio lama tetap berjalan selama mengunduh), lalu pemutaran lanjut dari ayat yang sedang dilantunkan
+     * (tetap jeda jika sedang jeda). Tidak perlu memilih ulang surat atau ayat.
      */
     private fun switchReciterLive(id: String) {
         val st = AudioEngine.state.value
@@ -147,8 +154,14 @@ class AppVm(app: Application) : AndroidViewModel(app) {
             busy = "Mengganti qari…"
             try {
                 chapterId = st.chapter; from = st.from; to = st.to
-                val ok = start(repo.ayahs(st.chapter, st.from, st.to), startAyah = st.ayah, autoPlay = st.playing, prefetch = false, record = false)
-                if (!ok) { Prefs.reciter = prev; reciter = prev }
+                val ok = start(
+                    repo.ayahs(st.chapter, st.from, st.to), startAyah = st.ayah, autoPlay = st.playing,
+                    record = false, strict = true, label = "Mengunduh audio qari baru",
+                )
+                if (!ok) {
+                    Prefs.reciter = prev; reciter = prev
+                    if (toast == null) toast = "Gagal mengunduh audio qari baru. Periksa koneksi. Qari kembali ke sebelumnya."
+                }
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 Prefs.reciter = prev; reciter = prev
